@@ -33,11 +33,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build
-        run: |
-          pip install maturin
-          maturin develop
-      - name: Install test deps
-        run: pip install pytest
+      - name: Build and install
+        run: pip install . pytest
       - name: Test
         run: pytest tests/ -v
