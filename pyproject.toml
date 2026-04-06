@@ -1,0 +1,27 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "pattrie"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Fast IP prefix lookup library with Rust backend"
+license = "MIT"
+dependencies = []
+
+[tool.maturin]
+python-source = "."
+module-name = "pattrie"
+features = ["pyo3/extension-module"]
+
+[tool.maturin.package-data]
+pattrie = ["py.typed", "*.pyi"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7",
+    "pytest-benchmark",
+    "pytricia",
+    "mypy",
+]
