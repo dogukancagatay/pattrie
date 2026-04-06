@@ -35,5 +35,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Build and install
         run: pip install . pytest
+        env:
+          # PyO3 0.24 supports up to Python 3.13; use stable ABI for 3.14+ until PyO3 is upgraded
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
       - name: Test
         run: pytest tests/ -v
