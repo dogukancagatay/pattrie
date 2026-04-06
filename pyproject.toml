@@ -6,9 +6,23 @@ build-backend = "maturin"
 name = "pattrie"
 requires-python = ">=3.12"
 description = "Fast IP prefix lookup library with Rust backend"
+readme = "README.md"
 license = "MIT"
 dependencies = []
 dynamic = ["version"]
+keywords = ["ip", "networking", "trie", "prefix", "cidr", "routing"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Topic :: System :: Networking",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3 :: Only",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/dogukancagatay/pattrie"
+Source = "https://github.com/dogukancagatay/pattrie"
+"Issue Tracker" = "https://github.com/dogukancagatay/pattrie/issues"
 
 [tool.maturin]
 python-source = "."
