@@ -1,5 +1,8 @@
 import socket
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+
 import pytest
+
 import pattrie
 
 
@@ -25,7 +28,7 @@ def test_constructor_custom_maxbits():
 
 def test_constructor_invalid_maxbits_type():
     with pytest.raises(TypeError):
-        pattrie.Pattrie("bad")
+        pattrie.Pattrie("bad")  # ty: ignore[invalid-argument-type]
 
 
 def test_constructor_negative_maxbits():
@@ -287,6 +290,7 @@ def test_thaw_restores_mutability():
 def test_freeze_concurrent_reads():
     """Frozen trie must serve concurrent reads from multiple threads."""
     import threading
+
     t = pattrie.Pattrie()
     for i in range(256):
         t[f"{i}.0.0.0/8"] = str(i)
@@ -313,7 +317,6 @@ def test_freeze_concurrent_reads():
 
 
 # --- ipaddress module object keys ---
-from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 
 
 def test_ipv4address_key():
@@ -351,9 +354,10 @@ def test_ipv6network_insert():
 # Adapted: IPv6 tests use explicit socket.AF_INET6 (pattrie requires it)
 # ---------------------------------------------------------------------------
 
+
 def test_ported_init():
     with pytest.raises((ValueError, TypeError)):
-        pattrie.Pattrie('a')
+        pattrie.Pattrie("a")  # ty: ignore[invalid-argument-type]
     with pytest.raises(ValueError):
         pattrie.Pattrie(-1)
     assert isinstance(pattrie.Pattrie(1), pattrie.Pattrie)
@@ -368,45 +372,45 @@ def test_ported_init():
 
 def test_ported_basic():
     t = pattrie.Pattrie()
-    t["10.0.0.0/8"] = 'a'
-    t["10.1.0.0/16"] = 'b'
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
 
-    assert t["10.0.0.0/8"] == 'a'
-    assert t["10.1.0.0/16"] == 'b'
-    assert t["10.0.0.0"] == 'a'
-    assert t["10.1.0.0"] == 'b'
-    assert t["10.1.0.1"] == 'b'
-    assert t["10.0.0.1"] == 'a'
+    assert t["10.0.0.0/8"] == "a"
+    assert t["10.1.0.0/16"] == "b"
+    assert t["10.0.0.0"] == "a"
+    assert t["10.1.0.0"] == "b"
+    assert t["10.1.0.1"] == "b"
+    assert t["10.0.0.1"] == "a"
 
-    assert '10.0.0.0' in t
-    assert '10.1.0.0' in t
-    assert '10.0.0.1' in t
-    assert '9.0.0.0' not in t
-    assert '0.0.0.0' not in t
+    assert "10.0.0.0" in t
+    assert "10.1.0.0" in t
+    assert "10.0.0.1" in t
+    assert "9.0.0.0" not in t
+    assert "0.0.0.0" not in t
 
-    assert t.has_key('10.0.0.0/8') is True
-    assert t.has_key('10.1.0.0/16') is True
-    assert t.has_key('10.2.0.0/16') is False
-    assert t.has_key('9.0.0.0/8') is False
-    assert t.has_key('10.0.0.0') is False
+    assert t.has_key("10.0.0.0/8") is True
+    assert t.has_key("10.1.0.0/16") is True
+    assert t.has_key("10.2.0.0/16") is False
+    assert t.has_key("9.0.0.0/8") is False
+    assert t.has_key("10.0.0.0") is False
 
-    assert sorted(['10.0.0.0/8', '10.1.0.0/16']) == sorted(t.keys())
+    assert sorted(["10.0.0.0/8", "10.1.0.0/16"]) == sorted(t.keys())
 
 
 def test_ported_more_complex():
     t = pattrie.Pattrie()
-    t["10.0.0.0/8"] = 'a'
-    t["10.1.0.0/16"] = 'b'
-    t["10.0.1.0/24"] = 'c'
-    t["0.0.0.0/0"] = 'default route'
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t["10.0.1.0/24"] = "c"
+    t["0.0.0.0/0"] = "default route"
 
-    assert t['10.0.0.1/32'] == 'a'
-    assert t['10.0.0.1'] == 'a'
-    assert t.has_key('1.0.0.0/8') is False
+    assert t["10.0.0.1/32"] == "a"
+    assert t["10.0.0.1"] == "a"
+    assert t.has_key("1.0.0.0/8") is False
     for i in range(256):
-        assert '{}.2.3.4'.format(i) in t
+        assert f"{i}.2.3.4" in t
         if i != 10:
-            assert t['{}.2.3.4'.format(i)] == 'default route'
+            assert t[f"{i}.2.3.4"] == "default route"
 
 
 def test_ported_delete():
@@ -426,24 +430,24 @@ def test_ported_delete():
 
 def test_ported_insert_remove():
     t = pattrie.Pattrie()
-    t['10.0.0.0/8'] = list(range(10))
-    assert t.keys() == ['10.0.0.0/8']
-    t.delete('10.0.0.0/8')
+    t["10.0.0.0/8"] = list(range(10))
+    assert t.keys() == ["10.0.0.0/8"]
+    t.delete("10.0.0.0/8")
     assert t.keys() == []
-    assert t.has_key('10.0.0.0/8') is False
+    assert t.has_key("10.0.0.0/8") is False
 
-    t['10.0.0.0/8'] = list(range(10))
-    t.delete('10.0.0.0/8')
+    t["10.0.0.0/8"] = list(range(10))
+    t.delete("10.0.0.0/8")
     assert t.keys() == []
 
-    t['10.0.0.0/8'] = list(range(10))
-    del t['10.0.0.0/8']
+    t["10.0.0.0/8"] = list(range(10))
+    del t["10.0.0.0/8"]
     assert t.keys() == []
 
     with pytest.raises(KeyError):
         t2 = pattrie.Pattrie()
-        t['10.0.0.0/8'] = list(range(10))
-        t2.delete('10.0.0.0/9')
+        t["10.0.0.0/8"] = list(range(10))
+        t2.delete("10.0.0.0/9")
 
 
 def test_ported_ip6():
@@ -453,24 +457,24 @@ def test_ported_ip6():
 
     addr = IPv6Address("fe80::1")
     xnet = IPv6Network("fe80::1/32", strict=False)
-    assert t[addr] == 'hello, ip6'
-    assert t[xnet] == 'hello, ip6'
+    assert t[addr] == "hello, ip6"
+    assert t[xnet] == "hello, ip6"
 
 
 def test_ported_iteration():
     t = pattrie.Pattrie()
-    t["10.1.0.0/16"] = 'b'
-    t["10.0.0.0/8"] = 'a'
-    t["10.0.1.0/24"] = 'c'
-    t["0.0.0.0/0"] = 'default route'
-    assert sorted(['0.0.0.0/0', '10.0.0.0/8', '10.1.0.0/16', '10.0.1.0/24']) == sorted(list(t))
+    t["10.1.0.0/16"] = "b"
+    t["10.0.0.0/8"] = "a"
+    t["10.0.1.0/24"] = "c"
+    t["0.0.0.0/0"] = "default route"
+    assert sorted(["0.0.0.0/0", "10.0.0.0/8", "10.1.0.0/16", "10.0.1.0/24"]) == sorted(list(t))
 
 
 def test_ported_iteration2():
     t = pattrie.Pattrie()
-    t["10.1.0.0/16"] = 'b'
-    t["10.0.0.0/8"] = 'a'
-    t["10.0.1.0/24"] = 'c'
+    t["10.1.0.0/16"] = "b"
+    t["10.0.0.0/8"] = "a"
+    t["10.0.1.0/24"] = "c"
     x = iter(t)
     assert next(x) is not None
     assert next(x) is not None
@@ -483,8 +487,8 @@ def test_ported_multiple_iter():
     t = pattrie.Pattrie()
     t["10.0.0.0/8"] = 0
     for _ in range(10):
-        assert list(t) == ['10.0.0.0/8']
-        assert t.keys() == ['10.0.0.0/8']
+        assert list(t) == ["10.0.0.0/8"]
+        assert t.keys() == ["10.0.0.0/8"]
 
 
 def test_ported_insert():
@@ -518,7 +522,7 @@ def test_ported_insert4():
     # raises TypeError (missing required arg) rather than ValueError
     t = pattrie.Pattrie(64, socket.AF_INET6)
     with pytest.raises((ValueError, TypeError)):
-        t.insert("fe80::1")  # missing prefix length / value
+        t.insert("fe80::1")  # ty: ignore[no-matching-overload]  # missing prefix length / value
 
 
 def test_ported_insert_valid_short_v6():
@@ -555,15 +559,15 @@ def test_ported_get2():
     t.insert("fe80:beef::0", 96, "abc")
     assert t.get("fe80:abcd::0/96") == "xyz"
     assert t.get("fe80:beef::0/96") == "abc"
-    assert sorted(t.keys()) == ['fe80:abcd::/96', 'fe80:beef::/96']
+    assert sorted(t.keys()) == ["fe80:abcd::/96", "fe80:beef::/96"]
 
 
 def test_ported_get3():
     t = pattrie.Pattrie(128, socket.AF_INET6)
-    t.insert(IPv6Network('2001:218:200e::/56'), "def")
+    t.insert(IPv6Network("2001:218:200e::/56"), "def")
     t.insert(IPv6Network("fe80:abcd::0/96"), "xyz")
     t.insert(IPv6Address("fe80:beef::"), 96, "abc")
-    assert sorted(t.keys()) == ['2001:218:200e::/56', 'fe80:abcd::/96', 'fe80:beef::/96']
+    assert sorted(t.keys()) == ["2001:218:200e::/56", "fe80:abcd::/96", "fe80:beef::/96"]
     assert t.get("fe80:abcd::0/96") == "xyz"
     assert t.get("fe80:beef::0/96") == "abc"
     assert t.get(IPv6Network("fe80:abcd::0/96")) == "xyz"
@@ -604,15 +608,16 @@ def test_ported_exceptions():
         t.delete("1.2.3/24")
     with pytest.raises(KeyError):
         t.delete("1.2.3.0/24")
-    assert t.has_key('1.2.3.0/24') is False
+    assert t.has_key("1.2.3.0/24") is False
     with pytest.raises(ValueError):
-        t.has_key('1.2.3/24')
-    assert '1.2.3.0/24' not in t
+        t.has_key("1.2.3/24")
+    assert "1.2.3.0/24" not in t
 
 
 # ---------------------------------------------------------------------------
 # maxbits enforcement
 # ---------------------------------------------------------------------------
+
 
 def test_maxbits_rejects_longer_prefix():
     t = pattrie.Pattrie(24)
@@ -629,6 +634,7 @@ def test_maxbits_accepts_equal_prefix():
 # ---------------------------------------------------------------------------
 # Int key fast path (IPv4 address as u32)
 # ---------------------------------------------------------------------------
+
 
 def test_int_key_lookup():
     t = pattrie.Pattrie()
@@ -660,6 +666,7 @@ def test_int_key_wrong_family():
 # ---------------------------------------------------------------------------
 # get_many
 # ---------------------------------------------------------------------------
+
 
 def test_get_many_basic():
     t = pattrie.Pattrie()
@@ -723,6 +730,7 @@ def test_get_many_frozen_default():
 def test_get_many_frozen_concurrent():
     """Frozen get_many must serve concurrent calls from multiple threads."""
     import threading
+
     t = pattrie.Pattrie()
     for i in range(256):
         t[f"{i}.0.0.0/8"] = str(i)
