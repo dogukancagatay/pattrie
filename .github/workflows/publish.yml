@@ -83,7 +83,6 @@ jobs:
   publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    if: false  # Remove this line and configure PyPI trusted publishing when ready to publish
     needs: [build-wheels, build-sdist]
     permissions:
       id-token: write
