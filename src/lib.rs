@@ -1,10 +1,11 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::intern;
-use pyo3::types::{PyDict, PyList, PyString, PyTuple};
+use pyo3::types::{PyDict, PyList, PyString, PyTuple, PyType};
 use prefix_trie::PrefixMap;
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use std::sync::{Arc, RwLock};
+use std::io::Write;
 
 enum TrieInner {
     V4(PrefixMap<Ipv4Net, Py<PyAny>>),
@@ -538,6 +539,147 @@ impl Pattrie {
         let socket = py.import("socket")?;
         self.af_inet = socket.getattr("AF_INET")?.extract()?;
         Ok(())
+    }
+
+    /// Serialize a frozen trie to a binary file.
+    ///
+    /// File format (all integers little-endian):
+    ///   [0..4]   magic:         b"PTRI"
+    ///   [4..8]   version:       u32 = 1
+    ///   [8..12]  family:        u32  (AF_INET or AF_INET6 value)
+    ///   [12..16] maxbits:       u32
+    ///   [16..24] entry_count:   u64
+    ///   [24..32] values_offset: u64  (byte offset of pickle section)
+    ///   [32..]   entries:       entry_count × (4+1 bytes for IPv4 | 16+1 bytes for IPv6)
+    ///   [values_offset..] pickle.dumps(list_of_values)
+    fn dump(&self, py: Python<'_>, path: std::path::PathBuf) -> PyResult<()> {
+        if !self.frozen {
+            return Err(PyValueError::new_err("dump() requires a frozen trie; call freeze() first"));
+        }
+
+        // Collect entries (addr bytes + prefixlen) and Python values in trie order.
+        let (addr_entries, values): (Vec<(Vec<u8>, u8)>, Vec<Py<PyAny>>) = {
+            let guard = self.inner.read().unwrap();
+            match &*guard {
+                TrieInner::V4(map) => map.iter().map(|(p, v)| {
+                    ((p.network().octets().to_vec(), p.prefix_len()), v.clone_ref(py))
+                }).unzip(),
+                TrieInner::V6(map) => map.iter().map(|(p, v)| {
+                    ((p.network().octets().to_vec(), p.prefix_len()), v.clone_ref(py))
+                }).unzip(),
+            }
+        };
+
+        // Pickle the values as a Python list.
+        let pickle = py.import("pickle")?;
+        let values_list = PyList::new(py, &values)?;
+        let pickled: Vec<u8> = pickle.call_method1("dumps", (values_list,))?.extract()?;
+
+        // Build fixed-size entry records.
+        let entry_size: usize = if self.family == self.af_inet { 5 } else { 17 };
+        let entry_count = addr_entries.len() as u64;
+        let values_offset = 32u64 + entry_count * entry_size as u64;
+
+        let mut entries_bytes: Vec<u8> = Vec::with_capacity(addr_entries.len() * entry_size);
+        for (addr, prefixlen) in &addr_entries {
+            entries_bytes.extend_from_slice(addr);
+            entries_bytes.push(*prefixlen);
+        }
+
+        let mut f = std::fs::File::create(&path)
+            .map_err(|e| PyValueError::new_err(format!("Cannot create {:?}: {e}", path)))?;
+        f.write_all(b"PTRI").map_err(|e| PyValueError::new_err(e.to_string()))?;
+        f.write_all(&1u32.to_le_bytes()).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        f.write_all(&(self.family as u32).to_le_bytes()).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        f.write_all(&(self.maxbits as u32).to_le_bytes()).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        f.write_all(&entry_count.to_le_bytes()).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        f.write_all(&values_offset.to_le_bytes()).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        f.write_all(&entries_bytes).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        f.write_all(&pickled).map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Load a trie from a file previously written by `dump()`.
+    /// The returned trie is frozen.
+    #[classmethod]
+    fn load(_cls: &Bound<'_, PyType>, py: Python<'_>, path: std::path::PathBuf) -> PyResult<Py<Self>> {
+        use memmap2::Mmap;
+
+        let file = std::fs::File::open(&path)
+            .map_err(|e| PyValueError::new_err(format!("Cannot open {:?}: {e}", path)))?;
+        // SAFETY: we only read from the mapping and drop it before returning.
+        let mmap = unsafe { Mmap::map(&file) }
+            .map_err(|e| PyValueError::new_err(format!("mmap failed: {e}")))?;
+
+        if mmap.len() < 32 {
+            return Err(PyValueError::new_err("File too small to be a valid pattrie dump"));
+        }
+        if &mmap[0..4] != b"PTRI" {
+            return Err(PyValueError::new_err("Not a pattrie dump file (bad magic)"));
+        }
+        let version     = u32::from_le_bytes(mmap[4..8].try_into().unwrap());
+        if version != 1 {
+            return Err(PyValueError::new_err(format!("Unsupported dump version: {version}")));
+        }
+        let family      = u32::from_le_bytes(mmap[8..12].try_into().unwrap()) as i32;
+        let maxbits     = u32::from_le_bytes(mmap[12..16].try_into().unwrap()) as u8;
+        let entry_count = u64::from_le_bytes(mmap[16..24].try_into().unwrap()) as usize;
+        let values_off  = u64::from_le_bytes(mmap[24..32].try_into().unwrap()) as usize;
+
+        let socket  = py.import("socket")?;
+        let af_inet: i32 = socket.getattr("AF_INET")?.extract()?;
+        let entry_size: usize = if family == af_inet { 5 } else { 17 };
+
+        let expected_values_off = 32 + entry_count * entry_size;
+        if values_off != expected_values_off || mmap.len() < values_off {
+            return Err(PyValueError::new_err("Corrupt dump file (bad offsets)"));
+        }
+
+        // Unpickle values list.
+        let pickle  = py.import("pickle")?;
+        let pickle_bytes: &[u8] = &mmap[values_off..];
+        let values_obj = pickle.call_method1("loads", (pickle_bytes,))?;
+        let values = values_obj.cast::<PyList>()?;
+        if values.len() != entry_count {
+            return Err(PyValueError::new_err("Corrupt dump file (entry/value count mismatch)"));
+        }
+
+        // Reconstruct the trie from fixed-size entry records.
+        let mut inner = if family == af_inet {
+            TrieInner::V4(PrefixMap::new())
+        } else {
+            TrieInner::V6(PrefixMap::new())
+        };
+
+        for i in 0..entry_count {
+            let off = 32 + i * entry_size;
+            let value: Py<PyAny> = values.get_item(i)?.unbind();
+            if family == af_inet {
+                let octets: [u8; 4] = mmap[off..off + 4].try_into().unwrap();
+                let prefixlen = mmap[off + 4];
+                let net = Ipv4Net::new(std::net::Ipv4Addr::from(octets), prefixlen)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                if let TrieInner::V4(ref mut map) = inner { map.insert(net, value); }
+            } else {
+                let octets: [u8; 16] = mmap[off..off + 16].try_into().unwrap();
+                let prefixlen = mmap[off + 16];
+                let net = Ipv6Net::new(std::net::Ipv6Addr::from(octets), prefixlen)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                if let TrieInner::V6(ref mut map) = inner { map.insert(net, value); }
+            }
+        }
+
+        // mmap and file are dropped here — unmapped before we return.
+        drop(mmap);
+        drop(file);
+
+        Py::new(py, Pattrie {
+            inner: Arc::new(RwLock::new(inner)),
+            maxbits,
+            family,
+            af_inet,
+            frozen: true,
+        })
     }
 
     fn freeze(&mut self) -> PyResult<()> {
