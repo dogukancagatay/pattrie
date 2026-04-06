@@ -21,10 +21,18 @@ Measured on Apple M-series, Python 3.13, release build, 100 000 random prefixes 
 
 | Benchmark | pattrie | pattrie (frozen) | pytricia | pysubnettree |
 |-----------|---------|-----------------|----------|--------------|
-| build (insert 100k prefixes) | ~30 ms | — | ~34 ms | ~61 ms |
-| LPM lookup (100k IPs) | ~40 ms | ~40 ms | ~43 ms | ~57 ms |
-| iteration (100k keys) | ~10 ms | — | ~16 ms | ~34 ms |
+| build (insert 100k prefixes) | ~27 ms | — | ~35 ms | ~62 ms |
+| LPM lookup (100k IPs) | ~39 ms | ~38 ms | ~46 ms | ~57 ms |
+| iteration (100k keys) | ~11 ms | — | ~16 ms | ~33 ms |
 
 `frozen` mode releases the GIL during trie traversal, enabling true concurrent reads from multiple threads at no single-threaded cost.
 
-pattrie is consistently faster than pytricia across all operations. pysubnettree (C++/C Patricia tree from the [Zeek](https://zeek.org) project) is slower in this workload, particularly for build and iteration.
+## Batch lookup (pattrie only)
+
+`get_many(keys)` processes a list of keys in a single Python→Rust call, eliminating per-call overhead. In frozen mode the entire traversal phase runs without the GIL.
+
+| Benchmark | pattrie | pattrie (frozen) |
+|-----------|---------|-----------------|
+| get_many (100k IPs) | ~31 ms | ~49 ms |
+
+> Batch results are not directly comparable to the single-key table above — pytricia and pysubnettree have no equivalent batch API.

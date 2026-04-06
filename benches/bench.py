@@ -158,3 +158,43 @@ def test_bench_iter_subnettree(benchmark, subnettree_trie_100k):
     def iterate():
         list(subnettree_trie_100k.prefixes())
     benchmark(iterate)
+
+
+# --- batch LPM lookup (pattrie only — not comparable to single-key benchmarks above) ---
+
+def test_bench_lpm_batch_pattrie(benchmark, pattrie_trie_100k):
+    t = pattrie_trie_100k
+
+    def lookup():
+        t.get_many(IPS_100K)
+    benchmark(lookup)
+
+
+def test_bench_lpm_batch_frozen_pattrie(benchmark, pattrie_trie_100k):
+    """Frozen trie: batch lookups release the GIL for the entire traversal phase."""
+    t = pattrie_trie_100k
+    t.freeze()
+
+    def lookup():
+        t.get_many(IPS_100K)
+    benchmark(lookup)
+
+
+# --- batch LPM lookup (pattrie only — not comparable to single-key benchmarks above) ---
+
+def test_bench_lpm_batch_pattrie(benchmark, pattrie_trie_100k):
+    t = pattrie_trie_100k
+
+    def lookup():
+        t.get_many(IPS_100K)
+    benchmark(lookup)
+
+
+def test_bench_lpm_batch_frozen_pattrie(benchmark, pattrie_trie_100k):
+    """Frozen trie: batch lookups release the GIL for the entire traversal phase."""
+    t = pattrie_trie_100k
+    t.freeze()
+
+    def lookup():
+        t.get_many(IPS_100K)
+    benchmark(lookup)
