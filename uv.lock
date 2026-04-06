@@ -158,6 +158,7 @@ source = { editable = "." }
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
+    { name = "pysubnettree" },
     { name = "pytest" },
     { name = "pytest-benchmark" },
     { name = "pytricia" },
@@ -168,6 +169,7 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy" },
+    { name = "pysubnettree" },
     { name = "pytest", specifier = ">=7" },
     { name = "pytest-benchmark" },
     { name = "pytricia" },
@@ -199,6 +201,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
 ]
+
+[[package]]
+name = "pysubnettree"
+version = "0.38.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/ed/ea61028e63dc1e22190adba64054542d6eb283ddea31d3c2611ceca8ea94/pysubnettree-0.38.1.tar.gz", hash = "sha256:b37117331b62430c5ba5a651fbcf046f7359fe1e502bf20e6883e03862f36593", size = 54770, upload-time = "2025-09-11T17:55:13.723Z" }
 
 [[package]]
 name = "pytest"

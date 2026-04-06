@@ -23,5 +23,6 @@ dev = [
     "pytest>=7",
     "pytest-benchmark",
     "pytricia",
+    "pysubnettree",
     "mypy",
 ]
