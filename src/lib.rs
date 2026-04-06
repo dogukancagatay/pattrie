@@ -48,8 +48,8 @@ fn parse_network_key(key: &Bound<'_, PyAny>, family: i32, af_inet: i32) -> PyRes
     Ok(parse_key(key, family, af_inet)?.trunc())
 }
 
-#[pyclass(name = "PyTricia")]
-struct PyTricia {
+#[pyclass(name = "Pattrie")]
+struct Pattrie {
     inner: Arc<RwLock<TrieInner>>,
     maxbits: u8,
     family: i32,
@@ -59,7 +59,7 @@ struct PyTricia {
 }
 
 #[pymethods]
-impl PyTricia {
+impl Pattrie {
     #[new]
     #[pyo3(signature = (maxbits=32, family=2))]
     fn new(py: Python<'_>, maxbits: i64, family: i64) -> PyResult<Self> {
@@ -89,7 +89,7 @@ impl PyTricia {
             TrieInner::V6(PrefixMap::new())
         };
 
-        Ok(PyTricia {
+        Ok(Pattrie {
             inner: Arc::new(RwLock::new(inner)),
             maxbits: maxbits as u8,
             family: family as i32,
@@ -108,7 +108,7 @@ impl PyTricia {
 
     fn __setitem__(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, value: PyObject) -> PyResult<()> {
         if self.frozen {
-            return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
+            return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
         }
         let af_inet = self.af_inet;
         let net = parse_network_key(key, self.family, af_inet)?;
@@ -130,7 +130,7 @@ impl PyTricia {
         Ok(())
     }
 
-    fn has_key(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
+    fn has_key(&self, _py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
         let af_inet = self.af_inet;
         let net = parse_network_key(key, self.family, af_inet)?;
 
@@ -187,7 +187,7 @@ impl PyTricia {
         }
     }
 
-    fn __contains__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
+    fn __contains__(&self, _py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
         let af_inet = self.af_inet;
         let net = match parse_key(key, self.family, af_inet) {
             Ok(n) => n,
@@ -216,7 +216,7 @@ impl PyTricia {
         Ok(result.unwrap_or_else(|| default.unwrap_or_else(|| py.None())))
     }
 
-    fn get_key(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
+    fn get_key(&self, _py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
         let af_inet = self.af_inet;
         let net = parse_key(key, self.family, af_inet)?;
 
@@ -236,9 +236,9 @@ impl PyTricia {
         self.delete(py, key)
     }
 
-    fn delete(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn delete(&mut self, _py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<()> {
         if self.frozen {
-            return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
+            return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
         }
         let af_inet = self.af_inet;
         let net = parse_network_key(key, self.family, af_inet)?;
@@ -266,7 +266,7 @@ impl PyTricia {
         value: Option<PyObject>,
     ) -> PyResult<()> {
         if self.frozen {
-            return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
+            return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
         }
         let af_inet = self.af_inet;
 
@@ -340,6 +340,6 @@ impl PyTricia {
 
 #[pymodule]
 fn _pattrie(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PyTricia>()?;
+    m.add_class::<Pattrie>()?;
     Ok(())
 }
