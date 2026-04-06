@@ -63,3 +63,48 @@ def test_invalid_key_garbage():
     t = pattrie.PyTricia()
     with pytest.raises(ValueError):
         _ = t["not-an-ip"]
+
+
+def test_insert_ipv4():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert len(t) == 1
+
+
+def test_has_key_exact_match():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert t.has_key("10.0.0.0/8") is True
+
+
+def test_has_key_no_match():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert t.has_key("11.0.0.0/8") is False
+
+
+def test_has_key_host_address_is_false():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert t.has_key("10.0.0.1") is False
+
+
+def test_insert_overwrites():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t["10.0.0.0/8"] = "b"
+    assert len(t) == 1
+    assert t.has_key("10.0.0.0/8") is True
+
+
+def test_insert_ipv6():
+    t = pattrie.PyTricia(128, socket.AF_INET6)
+    t["fe80::/32"] = "hello"
+    assert len(t) == 1
+    assert t.has_key("fe80::/32") is True
+
+
+def test_insert_wrong_family():
+    t = pattrie.PyTricia(32, socket.AF_INET)
+    with pytest.raises(ValueError):
+        t["fe80::/32"] = "hello"

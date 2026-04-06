@@ -109,6 +109,43 @@ impl PyTricia {
         }
     }
 
+    fn __setitem__(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, value: PyObject) -> PyResult<()> {
+        if self.frozen {
+            return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
+        }
+        let af_inet = get_af_inet(py)?;
+        let net = parse_network_key(key, self.family, af_inet)?;
+
+        let prefix_len = net.prefix_len();
+        if prefix_len > self.maxbits {
+            return Err(PyValueError::new_err(format!(
+                "Prefix length {} exceeds maxbits {}",
+                prefix_len, self.maxbits
+            )));
+        }
+
+        let mut guard = self.inner.write().unwrap();
+        match (&mut *guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => { map.insert(v4, value.clone_ref(py)); }
+            (TrieInner::V6(map), IpNet::V6(v6)) => { map.insert(v6, value.clone_ref(py)); }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
+    fn has_key(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let af_inet = get_af_inet(py)?;
+        let net = parse_network_key(key, self.family, af_inet)?;
+
+        let guard = self.inner.read().unwrap();
+        let found = match (&*guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.contains_key(&v4),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.contains_key(&v6),
+            _ => false,
+        };
+        Ok(found)
+    }
+
     fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<PyObject> {
         let af_inet = get_af_inet(py)?;
         let _net = parse_key(key, self.family, af_inet)?;
