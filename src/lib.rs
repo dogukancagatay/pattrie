@@ -51,7 +51,7 @@ fn parse_key_from_str(s: &str, family: i32, af_inet: i32) -> PyResult<IpNet> {
 ///   3. bare int     — IPv4 address as u32 (network/big-endian byte order).
 fn parse_key(py: Python<'_>, key: &Bound<'_, PyAny>, family: i32, af_inet: i32) -> PyResult<IpNet> {
     // Fast path 1: Python str — borrow &str directly, no allocation.
-    if let Ok(py_str) = key.downcast::<PyString>() {
+    if let Ok(py_str) = key.cast::<PyString>() {
         return parse_key_from_str(py_str.to_str()?, family, af_inet);
     }
 
@@ -122,7 +122,7 @@ impl Pattrie {
     #[new]
     #[pyo3(signature = (maxbits=32, family=2))]
     fn new(py: Python<'_>, maxbits: i64, family: i64) -> PyResult<Self> {
-        let socket = py.import_bound("socket")?;
+        let socket = py.import("socket")?;
         let af_inet: i64 = socket.getattr("AF_INET")?.extract()?;
         let af_inet6: i64 = socket.getattr("AF_INET6")?.extract()?;
 
@@ -165,7 +165,7 @@ impl Pattrie {
         }
     }
 
-    fn __setitem__(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, value: PyObject) -> PyResult<()> {
+    fn __setitem__(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, value: Py<PyAny>) -> PyResult<()> {
         if self.frozen {
             return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
         }
@@ -202,13 +202,13 @@ impl Pattrie {
         Ok(found)
     }
 
-    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
         let af_inet = self.af_inet;
         let net = parse_key(py, key, self.family, af_inet)?;
 
         if self.frozen {
             let inner_arc = Arc::clone(&self.inner);
-            let matched: Option<IpNet> = py.allow_threads(|| {
+            let matched: Option<IpNet> = py.detach(|| {
                 let guard = inner_arc.read().unwrap();
                 match (&*guard, &net) {
                     (TrieInner::V4(map), IpNet::V4(v4)) => {
@@ -259,7 +259,7 @@ impl Pattrie {
     }
 
     #[pyo3(signature = (key, default=None))]
-    fn get(&self, py: Python<'_>, key: &Bound<'_, PyAny>, default: Option<PyObject>) -> PyResult<PyObject> {
+    fn get(&self, py: Python<'_>, key: &Bound<'_, PyAny>, default: Option<Py<PyAny>>) -> PyResult<Py<PyAny>> {
         let af_inet = self.af_inet;
         let net = parse_key(py, key, self.family, af_inet)?;
 
@@ -319,14 +319,14 @@ impl Pattrie {
         py: Python<'_>,
         key_or_addr: &Bound<'_, PyAny>,
         value_or_prefixlen: &Bound<'_, PyAny>,
-        value: Option<PyObject>,
+        value: Option<Py<PyAny>>,
     ) -> PyResult<()> {
         if self.frozen {
             return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
         }
         let af_inet = self.af_inet;
 
-        let (net, val): (IpNet, PyObject) = if let Some(v) = value {
+        let (net, val): (IpNet, Py<PyAny>) = if let Some(v) = value {
             // 3-arg form: insert(addr, prefixlen, value)
             let plen: u8 = value_or_prefixlen.extract()?;
             let addr_str = key_or_addr.str()?.to_string();
@@ -349,7 +349,7 @@ impl Pattrie {
         } else {
             // 2-arg form: insert(prefix, value)
             let net = parse_network_key(py, key_or_addr, self.family, af_inet)?;
-            (net, value_or_prefixlen.into_py(py))
+            (net, value_or_prefixlen.clone().unbind())
         };
 
         let prefix_len = net.prefix_len();
@@ -369,10 +369,10 @@ impl Pattrie {
         Ok(())
     }
 
-    fn __iter__(&self, py: Python<'_>) -> PyResult<PyObject> {
+    fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let keys = self.keys();
-        let list = pyo3::types::PyList::new_bound(py, &keys);
-        Ok(list.call_method0("__iter__")?.into_py(py))
+        let list = pyo3::types::PyList::new(py, &keys)?;
+        Ok(list.call_method0("__iter__")?.unbind())
     }
 
     fn keys(&self) -> Vec<String> {
@@ -392,17 +392,17 @@ impl Pattrie {
         &self,
         py: Python<'_>,
         keys: &Bound<'_, pyo3::types::PyList>,
-        default: Option<PyObject>,
-    ) -> PyResult<PyObject> {
+        default: Option<Py<PyAny>>,
+    ) -> PyResult<Py<PyAny>> {
         let default_val = default.unwrap_or_else(|| py.None());
         let n = keys.len();
-        let mut results: Vec<PyObject> = Vec::with_capacity(n);
+        let mut results: Vec<Py<PyAny>> = Vec::with_capacity(n);
 
         if self.frozen {
             // Phase 1: extract all keys as strings while holding the GIL.
             let mut str_keys: Vec<Option<String>> = Vec::with_capacity(n);
             for item in keys.iter() {
-                let s = if let Ok(py_str) = item.downcast::<PyString>() {
+                let s = if let Ok(py_str) = item.cast::<PyString>() {
                     py_str.to_str().map(|s| s.to_owned()).ok()
                 } else {
                     item.str().and_then(|ps| ps.to_str().map(|s| s.to_owned())).ok()
@@ -415,7 +415,7 @@ impl Pattrie {
             let af_inet = self.af_inet;
 
             // Phase 2: all trie traversals without the GIL.
-            let matched: Vec<Option<IpNet>> = py.allow_threads(|| {
+            let matched: Vec<Option<IpNet>> = py.detach(|| {
                 let guard = inner_arc.read().unwrap();
                 str_keys.iter().map(|maybe_s| {
                     let net = parse_key_from_str(maybe_s.as_deref()?, family, af_inet).ok()?;
@@ -473,8 +473,8 @@ impl Pattrie {
             }
         }
 
-        let list = pyo3::types::PyList::new_bound(py, &results);
-        Ok(list.into_py(py))
+        let list = pyo3::types::PyList::new(py, &results)?;
+        Ok(list.into_any().unbind())
     }
 
     fn freeze(&mut self) -> PyResult<()> {
