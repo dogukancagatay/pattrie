@@ -229,6 +229,76 @@ impl PyTricia {
         }
     }
 
+    #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]
+    fn insert(
+        &mut self,
+        py: Python<'_>,
+        key_or_addr: &Bound<'_, PyAny>,
+        value_or_prefixlen: &Bound<'_, PyAny>,
+        value: Option<PyObject>,
+    ) -> PyResult<()> {
+        if self.frozen {
+            return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
+        }
+        let af_inet = get_af_inet(py)?;
+
+        let (net, val): (IpNet, PyObject) = if let Some(v) = value {
+            // 3-arg form: insert(addr, prefixlen, value)
+            let plen: u8 = value_or_prefixlen.extract()?;
+            let addr_str = key_or_addr.str()?.to_string();
+            let addr: std::net::IpAddr = addr_str
+                .parse()
+                .map_err(|_| PyValueError::new_err(format!("Invalid address: {}", addr_str)))?;
+            let net = match addr {
+                std::net::IpAddr::V4(a) => {
+                    IpNet::V4(Ipv4Net::new(a, plen).map_err(|e| PyValueError::new_err(e.to_string()))?.trunc())
+                }
+                std::net::IpAddr::V6(a) => {
+                    IpNet::V6(Ipv6Net::new(a, plen).map_err(|e| PyValueError::new_err(e.to_string()))?.trunc())
+                }
+            };
+            let is_v4 = matches!(net, IpNet::V4(_));
+            if (self.family == af_inet) != is_v4 {
+                return Err(PyValueError::new_err("Address family mismatch"));
+            }
+            (net, v)
+        } else {
+            // 2-arg form: insert(prefix, value)
+            let net = parse_network_key(key_or_addr, self.family, af_inet)?;
+            (net, value_or_prefixlen.into_py(py))
+        };
+
+        let prefix_len = net.prefix_len();
+        if prefix_len > self.maxbits {
+            return Err(PyValueError::new_err(format!(
+                "Prefix length {} exceeds maxbits {}",
+                prefix_len, self.maxbits
+            )));
+        }
+
+        let mut guard = self.inner.write().unwrap();
+        match (&mut *guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => { map.insert(v4, val); }
+            (TrieInner::V6(map), IpNet::V6(v6)) => { map.insert(v6, val); }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
+    fn __iter__(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let keys = self.keys();
+        let list = pyo3::types::PyList::new_bound(py, &keys);
+        Ok(list.call_method0("__iter__")?.into_py(py))
+    }
+
+    fn keys(&self) -> Vec<String> {
+        let guard = self.inner.read().unwrap();
+        match &*guard {
+            TrieInner::V4(map) => map.iter().map(|(p, _)| p.to_string()).collect(),
+            TrieInner::V6(map) => map.iter().map(|(p, _)| p.to_string()).collect(),
+        }
+    }
+
     fn freeze(&mut self) -> PyResult<()> {
         self.frozen = true;
         Ok(())

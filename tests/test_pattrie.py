@@ -188,3 +188,54 @@ def test_delete_frozen_raises():
     t.freeze()
     with pytest.raises(ValueError):
         del t["10.0.0.0/8"]
+
+
+def test_insert_2arg():
+    t = pattrie.PyTricia()
+    result = t.insert("10.0.0.0/8", "a")
+    assert result is None
+    assert t.has_key("10.0.0.0/8") is True
+
+
+def test_insert_3arg():
+    t = pattrie.PyTricia()
+    result = t.insert("10.0.0.0", 8, "a")
+    assert result is None
+    assert t.has_key("10.0.0.0/8") is True
+
+
+def test_insert_3arg_ipv6():
+    t = pattrie.PyTricia(128, socket.AF_INET6)
+    t.insert("fe80::", 32, "hello")
+    assert t.has_key("fe80::/32") is True
+
+
+def test_insert_returns_none():
+    t = pattrie.PyTricia()
+    assert t.insert("10.0.0.0/8", "a") is None
+
+
+def test_keys_returns_list():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert sorted(t.keys()) == ["10.0.0.0/8", "10.1.0.0/16"]
+
+
+def test_iter():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert sorted(list(t)) == ["10.0.0.0/8", "10.1.0.0/16"]
+
+
+def test_iter_empty():
+    t = pattrie.PyTricia()
+    assert list(t) == []
+
+
+def test_iter_ipv6():
+    t = pattrie.PyTricia(128, socket.AF_INET6)
+    t["fe80::/32"] = "a"
+    t["2001:db8::/32"] = "b"
+    assert len(t.keys()) == 2
