@@ -108,3 +108,48 @@ def test_insert_wrong_family():
     t = pattrie.PyTricia(32, socket.AF_INET)
     with pytest.raises(ValueError):
         t["fe80::/32"] = "hello"
+
+
+def test_getitem_lpm():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert t["10.1.2.3"] == "b"
+    assert t["10.2.0.1"] == "a"
+
+
+def test_getitem_no_match_raises():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    with pytest.raises(KeyError):
+        _ = t["192.168.0.1"]
+
+
+def test_contains_lpm():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert "10.1.2.3" in t
+    assert "192.168.0.1" not in t
+
+
+def test_get_lpm():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert t.get("10.1.2.3") == "a"
+    assert t.get("192.168.0.1") is None
+    assert t.get("192.168.0.1", "default") == "default"
+
+
+def test_get_key_returns_matched_prefix():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert t.get_key("10.1.2.3") == "10.1.0.0/16"
+    assert t.get_key("10.2.0.1") == "10.0.0.0/8"
+    assert t.get_key("192.168.0.1") is None
+
+
+def test_getitem_prefix_query():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert t["10.1.2.0/24"] == "a"

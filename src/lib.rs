@@ -148,8 +148,60 @@ impl PyTricia {
 
     fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<PyObject> {
         let af_inet = get_af_inet(py)?;
-        let _net = parse_key(key, self.family, af_inet)?;
-        Err(PyKeyError::new_err("not implemented yet"))
+        let net = parse_key(key, self.family, af_inet)?;
+
+        let guard = self.inner.read().unwrap();
+        let result = match (&*guard, &net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.get_lpm(v4).map(|(_, v)| v.clone_ref(py)),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.get_lpm(v6).map(|(_, v)| v.clone_ref(py)),
+            _ => None,
+        };
+        result.ok_or_else(|| PyKeyError::new_err(format!("No match for key: {}", net)))
+    }
+
+    fn __contains__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let af_inet = get_af_inet(py)?;
+        let net = match parse_key(key, self.family, af_inet) {
+            Ok(n) => n,
+            Err(_) => return Ok(false),
+        };
+
+        let guard = self.inner.read().unwrap();
+        Ok(match (&*guard, &net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.get_lpm(v4).is_some(),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.get_lpm(v6).is_some(),
+            _ => false,
+        })
+    }
+
+    #[pyo3(signature = (key, default=None))]
+    fn get(&self, py: Python<'_>, key: &Bound<'_, PyAny>, default: Option<PyObject>) -> PyResult<PyObject> {
+        let af_inet = get_af_inet(py)?;
+        let net = parse_key(key, self.family, af_inet)?;
+
+        let guard = self.inner.read().unwrap();
+        let result = match (&*guard, &net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.get_lpm(v4).map(|(_, v)| v.clone_ref(py)),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.get_lpm(v6).map(|(_, v)| v.clone_ref(py)),
+            _ => None,
+        };
+        Ok(result.unwrap_or_else(|| default.unwrap_or_else(|| py.None())))
+    }
+
+    fn get_key(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
+        let af_inet = get_af_inet(py)?;
+        let net = parse_key(key, self.family, af_inet)?;
+
+        let guard = self.inner.read().unwrap();
+        Ok(match (&*guard, &net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => {
+                map.get_lpm(v4).map(|(prefix, _)| prefix.to_string())
+            }
+            (TrieInner::V6(map), IpNet::V6(v6)) => {
+                map.get_lpm(v6).map(|(prefix, _)| prefix.to_string())
+            }
+            _ => None,
+        })
     }
 }
 
