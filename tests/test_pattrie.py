@@ -51,3 +51,15 @@ def test_constructor_invalid_family():
 def test_len_empty():
     t = pattrie.PyTricia()
     assert len(t) == 0
+
+
+def test_invalid_key_empty():
+    t = pattrie.PyTricia()
+    with pytest.raises(ValueError):
+        _ = t[""]
+
+
+def test_invalid_key_garbage():
+    t = pattrie.PyTricia()
+    with pytest.raises(ValueError):
+        _ = t["not-an-ip"]
