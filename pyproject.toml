@@ -4,11 +4,11 @@ build-backend = "maturin"
 
 [project]
 name = "pattrie"
-version = "0.1.0"
 requires-python = ">=3.12"
 description = "Fast IP prefix lookup library with Rust backend"
 license = "MIT"
 dependencies = []
+dynamic = ["version"]
 
 [tool.maturin]
 python-source = "."
