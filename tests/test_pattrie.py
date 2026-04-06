@@ -310,3 +310,37 @@ def test_freeze_concurrent_reads():
     assert not errors
     for i in range(10):
         assert results[i] == str(i)
+
+
+# --- ipaddress module object keys ---
+from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
+
+
+def test_ipv4address_key():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert t[IPv4Address("10.1.2.3")] == "a"
+
+
+def test_ipv4network_key():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    assert t[IPv4Network("10.1.0.0/16")] == "a"
+
+
+def test_ipv4network_insert():
+    t = pattrie.PyTricia()
+    t[IPv4Network("10.0.0.0/8")] = "a"
+    assert t.has_key("10.0.0.0/8") is True
+
+
+def test_ipv6address_key():
+    t = pattrie.PyTricia(128, socket.AF_INET6)
+    t["fe80::/32"] = "hello"
+    assert t[IPv6Address("fe80::1")] == "hello"
+
+
+def test_ipv6network_insert():
+    t = pattrie.PyTricia(128, socket.AF_INET6)
+    t.insert(IPv6Network("fe80::/32"), "hello")
+    assert t.has_key("fe80::/32") is True
