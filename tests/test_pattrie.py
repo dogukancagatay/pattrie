@@ -239,3 +239,74 @@ def test_iter_ipv6():
     t["fe80::/32"] = "a"
     t["2001:db8::/32"] = "b"
     assert len(t.keys()) == 2
+
+
+def test_freeze_prevents_setitem():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    with pytest.raises(ValueError):
+        t["10.1.0.0/16"] = "b"
+
+
+def test_freeze_prevents_insert():
+    t = pattrie.PyTricia()
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.insert("10.0.0.0/8", "a")
+
+
+def test_freeze_prevents_delete():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    with pytest.raises(ValueError):
+        del t["10.0.0.0/8"]
+
+
+def test_freeze_allows_reads():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    assert t["10.1.2.3"] == "a"
+    assert t.get("10.1.2.3") == "a"
+    assert t.get_key("10.1.2.3") == "10.0.0.0/8"
+    assert t.has_key("10.0.0.0/8") is True
+    assert "10.1.2.3" in t
+
+
+def test_thaw_restores_mutability():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    t.thaw()
+    t["10.1.0.0/16"] = "b"
+    assert len(t) == 2
+
+
+def test_freeze_concurrent_reads():
+    """Frozen trie must serve concurrent reads from multiple threads."""
+    import threading
+    t = pattrie.PyTricia()
+    for i in range(256):
+        t[f"{i}.0.0.0/8"] = str(i)
+    t.freeze()
+
+    results = {}
+    errors = []
+
+    def lookup(tid):
+        try:
+            results[tid] = t[f"{tid}.1.2.3"]
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=lookup, args=(i,)) for i in range(10)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert not errors
+    for i in range(10):
+        assert results[i] == str(i)

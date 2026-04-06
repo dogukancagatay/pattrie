@@ -150,13 +150,44 @@ impl PyTricia {
         let af_inet = get_af_inet(py)?;
         let net = parse_key(key, self.family, af_inet)?;
 
-        let guard = self.inner.read().unwrap();
-        let result = match (&*guard, &net) {
-            (TrieInner::V4(map), IpNet::V4(v4)) => map.get_lpm(v4).map(|(_, v)| v.clone_ref(py)),
-            (TrieInner::V6(map), IpNet::V6(v6)) => map.get_lpm(v6).map(|(_, v)| v.clone_ref(py)),
-            _ => None,
-        };
-        result.ok_or_else(|| PyKeyError::new_err(format!("No match for key: {}", net)))
+        if self.frozen {
+            // Release GIL during trie traversal — enables true concurrent reads.
+            // Capture the matched prefix (a pure Rust value) then re-acquire GIL to clone
+            // the Python value with a quick exact lookup.
+            let inner_arc = Arc::clone(&self.inner);
+            let matched: Option<IpNet> = py.allow_threads(|| {
+                let guard = inner_arc.read().unwrap();
+                match (&*guard, &net) {
+                    (TrieInner::V4(map), IpNet::V4(v4)) => {
+                        map.get_lpm(v4).map(|(prefix, _)| IpNet::V4(*prefix))
+                    }
+                    (TrieInner::V6(map), IpNet::V6(v6)) => {
+                        map.get_lpm(v6).map(|(prefix, _)| IpNet::V6(*prefix))
+                    }
+                    _ => None,
+                }
+            });
+            match matched {
+                None => Err(PyKeyError::new_err(format!("No match for key: {}", net))),
+                Some(matched_prefix) => {
+                    let guard = self.inner.read().unwrap();
+                    let result = match (&*guard, &matched_prefix) {
+                        (TrieInner::V4(map), IpNet::V4(v4)) => map.get(v4).map(|v| v.clone_ref(py)),
+                        (TrieInner::V6(map), IpNet::V6(v6)) => map.get(v6).map(|v| v.clone_ref(py)),
+                        _ => None,
+                    };
+                    result.ok_or_else(|| PyKeyError::new_err(format!("No match for key: {}", net)))
+                }
+            }
+        } else {
+            let guard = self.inner.read().unwrap();
+            let result = match (&*guard, &net) {
+                (TrieInner::V4(map), IpNet::V4(v4)) => map.get_lpm(v4).map(|(_, v)| v.clone_ref(py)),
+                (TrieInner::V6(map), IpNet::V6(v6)) => map.get_lpm(v6).map(|(_, v)| v.clone_ref(py)),
+                _ => None,
+            };
+            result.ok_or_else(|| PyKeyError::new_err(format!("No match for key: {}", net)))
+        }
     }
 
     fn __contains__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
