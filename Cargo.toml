@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.27", features = ["extension-module"] }
 prefix-trie = "0.4"
 ipnet = "2"
+memmap2 = "0.9"
 
 [profile.release]
 lto = true
