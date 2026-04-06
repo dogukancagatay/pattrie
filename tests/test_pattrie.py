@@ -608,3 +608,160 @@ def test_ported_exceptions():
     with pytest.raises(ValueError):
         t.has_key('1.2.3/24')
     assert '1.2.3.0/24' not in t
+
+
+# ---------------------------------------------------------------------------
+# maxbits enforcement
+# ---------------------------------------------------------------------------
+
+def test_maxbits_rejects_longer_prefix():
+    t = pattrie.Pattrie(24)
+    with pytest.raises(ValueError):
+        t["10.0.0.0/25"] = "a"
+
+
+def test_maxbits_accepts_equal_prefix():
+    t = pattrie.Pattrie(24)
+    t["10.0.0.0/24"] = "a"
+    assert t.has_key("10.0.0.0/24") is True
+
+
+# ---------------------------------------------------------------------------
+# Int key fast path (IPv4 address as u32)
+# ---------------------------------------------------------------------------
+
+def test_int_key_lookup():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "rfc1918"
+    # int(IPv4Address("10.1.2.3")) == 0x0A010203
+    assert t[0x0A010203] == "rfc1918"
+
+
+def test_int_key_contains():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    assert 0x0A000001 in t
+    assert 0xC0A80001 not in t  # 192.168.0.1
+
+
+def test_int_key_get():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    assert t.get(0x0A000001) == "a"
+    assert t.get(0xC0A80001) is None
+
+
+def test_int_key_wrong_family():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    with pytest.raises(ValueError):
+        _ = t[0x0A010203]
+
+
+# ---------------------------------------------------------------------------
+# get_many
+# ---------------------------------------------------------------------------
+
+def test_get_many_basic():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    result = t.get_many(["10.1.2.3", "10.2.0.1", "192.168.0.1"])
+    assert result == ["b", "a", None]
+
+
+def test_get_many_empty_input():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    assert t.get_many([]) == []
+
+
+def test_get_many_default():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    result = t.get_many(["10.1.2.3", "192.168.0.1"], default="miss")
+    assert result == ["a", "miss"]
+
+
+def test_get_many_all_miss():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    result = t.get_many(["192.168.0.1", "172.16.0.1"])
+    assert result == [None, None]
+
+
+def test_get_many_invalid_key_returns_default():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    result = t.get_many(["10.1.2.3", "not-an-ip", "10.2.0.1"])
+    assert result == ["a", None, "a"]
+
+
+def test_get_many_ipaddress_keys():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    result = t.get_many([IPv4Address("10.1.2.3"), IPv4Address("192.168.0.1")])
+    assert result == ["a", None]
+
+
+def test_get_many_frozen():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t.freeze()
+    result = t.get_many(["10.1.2.3", "10.2.0.1", "192.168.0.1"])
+    assert result == ["b", "a", None]
+
+
+def test_get_many_frozen_default():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    result = t.get_many(["10.1.2.3", "192.168.0.1"], default="miss")
+    assert result == ["a", "miss"]
+
+
+def test_get_many_frozen_concurrent():
+    """Frozen get_many must serve concurrent calls from multiple threads."""
+    import threading
+    t = pattrie.Pattrie()
+    for i in range(256):
+        t[f"{i}.0.0.0/8"] = str(i)
+    t.freeze()
+
+    results = {}
+    errors = []
+
+    def batch_lookup(tid):
+        try:
+            ips = [f"{tid}.{j}.0.1" for j in range(10)]
+            vals = t.get_many(ips)
+            results[tid] = vals
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=batch_lookup, args=(i,)) for i in range(10)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert not errors
+    for i in range(10):
+        assert all(v == str(i) for v in results[i])
+
+
+def test_get_many_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/10"] = "link-local"
+    t["2001:db8::/32"] = "docs"
+    result = t.get_many(["fe80::1", "2001:db8::1", "::1"])
+    assert result == ["link-local", "docs", None]
+
+
+def test_get_many_preserves_order():
+    t = pattrie.Pattrie()
+    for i in range(10):
+        t[f"{i}.0.0.0/8"] = i
+    ips = [f"{i}.1.2.3" for i in range(9, -1, -1)]
+    result = t.get_many(ips)
+    assert result == list(range(9, -1, -1))

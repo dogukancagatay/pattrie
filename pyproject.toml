@@ -25,4 +25,5 @@ dev = [
     "pytricia",
     "pysubnettree",
     "mypy",
+    "pytest-cov>=7.1.0",
 ]
