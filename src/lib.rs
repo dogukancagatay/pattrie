@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::intern;
-use pyo3::types::PyString;
+use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 use prefix_trie::PrefixMap;
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use std::sync::{Arc, RwLock};
@@ -107,7 +107,7 @@ fn parse_network_key(py: Python<'_>, key: &Bound<'_, PyAny>, family: i32, af_ine
     Ok(parse_key(py, key, family, af_inet)?.trunc())
 }
 
-#[pyclass(name = "Pattrie")]
+#[pyclass(name = "Pattrie", module = "pattrie")]
 struct Pattrie {
     inner: Arc<RwLock<TrieInner>>,
     maxbits: u8,
@@ -475,6 +475,69 @@ impl Pattrie {
 
         let list = pyo3::types::PyList::new(py, &results)?;
         Ok(list.into_any().unbind())
+    }
+
+    fn __reduce__(slf: &Bound<'_, Self>, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let cls = slf.get_type().into_any().unbind();
+        let me = slf.borrow();
+        let args = PyTuple::new(py, [me.maxbits as i64, me.family as i64])?;
+        let state = me.__getstate__(py)?;
+        drop(me);
+        Ok(PyTuple::new(py, [cls, args.into_any().unbind(), state])?
+            .into_any()
+            .unbind())
+    }
+
+    fn __getstate__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let guard = self.inner.read().unwrap();
+        let build_entry = |prefix: &str, val: &Py<PyAny>| -> PyResult<Py<PyAny>> {
+            let pair = PyList::new(py, [
+                PyString::new(py, prefix).into_any().unbind(),
+                val.clone_ref(py),
+            ])?;
+            Ok(pair.into_any().unbind())
+        };
+        let entries: PyResult<Vec<Py<PyAny>>> = match &*guard {
+            TrieInner::V4(map) => map.iter().map(|(p, v)| build_entry(&p.to_string(), v)).collect(),
+            TrieInner::V6(map) => map.iter().map(|(p, v)| build_entry(&p.to_string(), v)).collect(),
+        };
+        let dict = PyDict::new(py);
+        dict.set_item("frozen", self.frozen)?;
+        dict.set_item("entries", PyList::new(py, entries?)?)?;
+        Ok(dict.into_any().unbind())
+    }
+
+    fn __setstate__(&mut self, py: Python<'_>, state: &Bound<'_, PyAny>) -> PyResult<()> {
+        let dict = state.cast::<PyDict>()?;
+        let frozen: bool = dict
+            .get_item("frozen")?
+            .ok_or_else(|| PyValueError::new_err("Missing 'frozen' in pickle state"))?
+            .extract()?;
+        let entries_obj = dict
+            .get_item("entries")?
+            .ok_or_else(|| PyValueError::new_err("Missing 'entries' in pickle state"))?;
+        let entries_list = entries_obj.cast::<PyList>()?;
+        {
+            let mut guard = self.inner.write().unwrap();
+            for item in entries_list.iter() {
+                let pair = item.cast::<PyList>()?;
+                let prefix_str: String = pair.get_item(0)?.extract()?;
+                let value: Py<PyAny> = pair.get_item(1)?.unbind();
+                let net: IpNet = prefix_str.parse().map_err(|_| {
+                    PyValueError::new_err(format!("Invalid prefix in pickle state: {prefix_str}"))
+                })?;
+                match (&mut *guard, net) {
+                    (TrieInner::V4(map), IpNet::V4(v4)) => { map.insert(v4, value); }
+                    (TrieInner::V6(map), IpNet::V6(v6)) => { map.insert(v6, value); }
+                    _ => return Err(PyValueError::new_err("Address family mismatch in pickle state")),
+                }
+            }
+        }
+        self.frozen = frozen;
+        // Re-cache af_inet in case __new__ was bypassed by pickle
+        let socket = py.import("socket")?;
+        self.af_inet = socket.getattr("AF_INET")?.extract()?;
+        Ok(())
     }
 
     fn freeze(&mut self) -> PyResult<()> {
