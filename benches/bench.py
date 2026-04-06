@@ -9,6 +9,12 @@ try:
 except ImportError:
     HAS_PYTRICIA = False
 
+try:
+    import SubnetTree as _SubnetTree
+    HAS_SUBNETTREE = True
+except ImportError:
+    HAS_SUBNETTREE = False
+
 
 def _random_prefixes(n: int) -> list[str]:
     prefixes: set[str] = set()
@@ -49,6 +55,18 @@ def pytricia_trie_100k():
     return t
 
 
+@pytest.fixture
+def subnettree_trie_100k():
+    if not HAS_SUBNETTREE:
+        pytest.skip("pysubnettree not installed")
+    t = _SubnetTree.SubnetTree()
+    for i, p in enumerate(PREFIXES_100K):
+        t[p] = i
+    return t
+
+
+# --- build ---
+
 def test_bench_build_pattrie(benchmark):
     def build():
         t = pattrie.Pattrie()
@@ -68,6 +86,19 @@ def test_bench_build_pytricia(benchmark):
     benchmark(build)
 
 
+def test_bench_build_subnettree(benchmark):
+    if not HAS_SUBNETTREE:
+        pytest.skip("pysubnettree not installed")
+
+    def build():
+        t = _SubnetTree.SubnetTree()
+        for i, p in enumerate(PREFIXES_100K):
+            t[p] = i
+    benchmark(build)
+
+
+# --- LPM lookup ---
+
 def test_bench_lpm_pattrie(benchmark, pattrie_trie_100k):
     t = pattrie_trie_100k
 
@@ -86,6 +117,18 @@ def test_bench_lpm_pytricia(benchmark, pytricia_trie_100k):
     benchmark(lookup)
 
 
+def test_bench_lpm_subnettree(benchmark, subnettree_trie_100k):
+    t = subnettree_trie_100k
+
+    def lookup():
+        for ip in IPS_100K:
+            try:
+                t[ip]
+            except KeyError:
+                pass
+    benchmark(lookup)
+
+
 def test_bench_lpm_frozen_pattrie(benchmark, pattrie_trie_100k):
     """Frozen trie: GIL released during trie traversal."""
     t = pattrie_trie_100k
@@ -97,6 +140,8 @@ def test_bench_lpm_frozen_pattrie(benchmark, pattrie_trie_100k):
     benchmark(lookup)
 
 
+# --- iteration ---
+
 def test_bench_iter_pattrie(benchmark, pattrie_trie_100k):
     def iterate():
         list(pattrie_trie_100k)
@@ -106,4 +151,10 @@ def test_bench_iter_pattrie(benchmark, pattrie_trie_100k):
 def test_bench_iter_pytricia(benchmark, pytricia_trie_100k):
     def iterate():
         list(pytricia_trie_100k)
+    benchmark(iterate)
+
+
+def test_bench_iter_subnettree(benchmark, subnettree_trie_100k):
+    def iterate():
+        list(subnettree_trie_100k.prefixes())
     benchmark(iterate)
