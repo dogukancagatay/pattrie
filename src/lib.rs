@@ -383,6 +383,100 @@ impl Pattrie {
         }
     }
 
+    /// Look up multiple keys in one call, returning a list of values (or `default` on miss).
+    ///
+    /// When the trie is frozen, the entire batch of trie traversals runs without the GIL,
+    /// enabling true parallel use from multiple threads.
+    #[pyo3(signature = (keys, default=None))]
+    fn get_many(
+        &self,
+        py: Python<'_>,
+        keys: &Bound<'_, pyo3::types::PyList>,
+        default: Option<PyObject>,
+    ) -> PyResult<PyObject> {
+        let default_val = default.unwrap_or_else(|| py.None());
+        let n = keys.len();
+        let mut results: Vec<PyObject> = Vec::with_capacity(n);
+
+        if self.frozen {
+            // Phase 1: extract all keys as strings while holding the GIL.
+            let mut str_keys: Vec<Option<String>> = Vec::with_capacity(n);
+            for item in keys.iter() {
+                let s = if let Ok(py_str) = item.downcast::<PyString>() {
+                    py_str.to_str().map(|s| s.to_owned()).ok()
+                } else {
+                    item.str().and_then(|ps| ps.to_str().map(|s| s.to_owned())).ok()
+                };
+                str_keys.push(s);
+            }
+
+            let inner_arc = Arc::clone(&self.inner);
+            let family = self.family;
+            let af_inet = self.af_inet;
+
+            // Phase 2: all trie traversals without the GIL.
+            let matched: Vec<Option<IpNet>> = py.allow_threads(|| {
+                let guard = inner_arc.read().unwrap();
+                str_keys.iter().map(|maybe_s| {
+                    let net = parse_key_from_str(maybe_s.as_deref()?, family, af_inet).ok()?;
+                    match (&*guard, &net) {
+                        (TrieInner::V4(map), IpNet::V4(v4)) => {
+                            map.get_lpm(v4).map(|(p, _)| IpNet::V4(*p))
+                        }
+                        (TrieInner::V6(map), IpNet::V6(v6)) => {
+                            map.get_lpm(v6).map(|(p, _)| IpNet::V6(*p))
+                        }
+                        _ => None,
+                    }
+                }).collect()
+            });
+
+            // Phase 3: clone Python values (needs the GIL).
+            let guard = self.inner.read().unwrap();
+            for prefix in matched {
+                let val = match prefix {
+                    None => default_val.clone_ref(py),
+                    Some(p) => match (&*guard, &p) {
+                        (TrieInner::V4(map), IpNet::V4(v4)) => {
+                            map.get(v4).map(|v| v.clone_ref(py))
+                                .unwrap_or_else(|| default_val.clone_ref(py))
+                        }
+                        (TrieInner::V6(map), IpNet::V6(v6)) => {
+                            map.get(v6).map(|v| v.clone_ref(py))
+                                .unwrap_or_else(|| default_val.clone_ref(py))
+                        }
+                        _ => default_val.clone_ref(py),
+                    },
+                };
+                results.push(val);
+            }
+        } else {
+            let guard = self.inner.read().unwrap();
+            for item in keys.iter() {
+                let net = match parse_key(py, &item, self.family, self.af_inet) {
+                    Ok(n) => n,
+                    Err(_) => {
+                        results.push(default_val.clone_ref(py));
+                        continue;
+                    }
+                };
+                let val = match (&*guard, &net) {
+                    (TrieInner::V4(map), IpNet::V4(v4)) => {
+                        map.get_lpm(v4).map(|(_, v)| v.clone_ref(py))
+                    }
+                    (TrieInner::V6(map), IpNet::V6(v6)) => {
+                        map.get_lpm(v6).map(|(_, v)| v.clone_ref(py))
+                    }
+                    _ => None,
+                }.unwrap_or_else(|| default_val.clone_ref(py));
+                results.push(val);
+            }
+        }
+
+        let list = pyo3::types::PyList::new_bound(py, &results);
+        Ok(list.into_py(py))
+    }
+
     fn freeze(&mut self) -> PyResult<()> {
         self.frozen = true;
         Ok(())
