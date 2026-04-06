@@ -1,4 +1,5 @@
 """Static type-checking smoke test — checked by ty in CI, not run by pytest."""
+
 import socket
 
 import pattrie

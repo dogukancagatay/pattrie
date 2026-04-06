@@ -13,9 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uvx ruff check .
-      - run: uvx ruff format --check .
-      - run: uvx ty check
+      - name: Install dev deps (no Rust build)
+        run: uv sync --dev --no-install-project
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run ty check
 
   test:
     name: Test (${{ matrix.os }} / Python ${{ matrix.python-version }})
