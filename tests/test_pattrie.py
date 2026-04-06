@@ -153,3 +153,38 @@ def test_getitem_prefix_query():
     t = pattrie.PyTricia()
     t["10.0.0.0/8"] = "a"
     assert t["10.1.2.0/24"] == "a"
+
+
+def test_delete_existing():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    del t["10.0.0.0/8"]
+    assert len(t) == 0
+    assert t.has_key("10.0.0.0/8") is False
+
+
+def test_delete_missing_raises():
+    t = pattrie.PyTricia()
+    with pytest.raises(KeyError):
+        del t["10.0.0.0/8"]
+
+
+def test_delete_method():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t.delete("10.0.0.0/8")
+    assert len(t) == 0
+
+
+def test_delete_method_missing_raises():
+    t = pattrie.PyTricia()
+    with pytest.raises(KeyError):
+        t.delete("10.0.0.0/8")
+
+
+def test_delete_frozen_raises():
+    t = pattrie.PyTricia()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    with pytest.raises(ValueError):
+        del t["10.0.0.0/8"]

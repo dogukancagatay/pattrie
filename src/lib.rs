@@ -203,6 +203,41 @@ impl PyTricia {
             _ => None,
         })
     }
+
+    fn __delitem__(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.delete(py, key)
+    }
+
+    fn delete(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<()> {
+        if self.frozen {
+            return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
+        }
+        let af_inet = get_af_inet(py)?;
+        let net = parse_network_key(key, self.family, af_inet)?;
+
+        let mut guard = self.inner.write().unwrap();
+        let removed = match (&mut *guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.remove(&v4).is_some(),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.remove(&v6).is_some(),
+            _ => false,
+        };
+
+        if removed {
+            Ok(())
+        } else {
+            Err(PyKeyError::new_err(format!("Prefix not found: {}", key.str()?)))
+        }
+    }
+
+    fn freeze(&mut self) -> PyResult<()> {
+        self.frozen = true;
+        Ok(())
+    }
+
+    fn thaw(&mut self) -> PyResult<()> {
+        self.frozen = false;
+        Ok(())
+    }
 }
 
 #[pymodule]
