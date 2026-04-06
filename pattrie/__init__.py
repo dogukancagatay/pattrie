@@ -1,3 +1,3 @@
-from ._pattrie import PyTricia
+from ._pattrie import Pattrie
 
-__all__ = ["PyTricia"]
+__all__ = ["Pattrie"]
