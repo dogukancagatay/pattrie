@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::{PyKeyError, PyValueError};
+use pyo3::types::PyString;
 use prefix_trie::PrefixMap;
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use std::sync::{Arc, RwLock};
@@ -9,12 +10,8 @@ enum TrieInner {
     V6(PrefixMap<Ipv6Net, Py<PyAny>>),
 }
 
-/// Parse a Python key (str or ipaddress object) into an IpNet.
-/// For bare addresses (no /len), uses /32 for IPv4 and /128 for IPv6.
-/// Validates against the trie's address family.
-fn parse_key(key: &Bound<'_, PyAny>, family: i32, af_inet: i32) -> PyResult<IpNet> {
-    let s = key.str()?.to_string();
-
+/// Core string parsing logic — shared by parse_key and the GIL-free path in get_many.
+fn parse_key_from_str(s: &str, family: i32, af_inet: i32) -> PyResult<IpNet> {
     if s.is_empty() {
         return Err(PyValueError::new_err("Invalid key: empty string"));
     }
@@ -41,6 +38,20 @@ fn parse_key(key: &Bound<'_, PyAny>, family: i32, af_inet: i32) -> PyResult<IpNe
     }
 
     Ok(net)
+}
+
+/// Parse a Python key (str or ipaddress object) into an IpNet.
+/// For bare addresses (no /len), uses /32 for IPv4 and /128 for IPv6.
+/// Validates against the trie's address family.
+fn parse_key(key: &Bound<'_, PyAny>, family: i32, af_inet: i32) -> PyResult<IpNet> {
+    // Fast path: Python str — borrow &str directly, no String allocation.
+    if let Ok(py_str) = key.downcast::<PyString>() {
+        return parse_key_from_str(py_str.to_str()?, family, af_inet);
+    }
+
+    // Fallback: convert to str (e.g. IPv4Address.__str__) then parse.
+    let s = key.str()?;
+    parse_key_from_str(s.to_str()?, family, af_inet)
 }
 
 /// Parse a key as a network prefix, zeroing host bits: "10.1.2.3/8" → "10.0.0.0/8".
@@ -148,9 +159,6 @@ impl Pattrie {
         let net = parse_key(key, self.family, af_inet)?;
 
         if self.frozen {
-            // Release GIL during trie traversal — enables true concurrent reads.
-            // Capture the matched prefix (a pure Rust value) then re-acquire GIL to clone
-            // the Python value with a quick exact lookup.
             let inner_arc = Arc::clone(&self.inner);
             let matched: Option<IpNet> = py.allow_threads(|| {
                 let guard = inner_arc.read().unwrap();
