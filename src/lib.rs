@@ -48,17 +48,13 @@ fn parse_network_key(key: &Bound<'_, PyAny>, family: i32, af_inet: i32) -> PyRes
     Ok(parse_key(key, family, af_inet)?.trunc())
 }
 
-/// Resolve AF_INET from Python's socket module (platform-safe: Linux=2, macOS=2, but AF_INET6 differs).
-fn get_af_inet(py: Python<'_>) -> PyResult<i32> {
-    let socket = py.import_bound("socket")?;
-    Ok(socket.getattr("AF_INET")?.extract()?)
-}
-
 #[pyclass(name = "PyTricia")]
 struct PyTricia {
     inner: Arc<RwLock<TrieInner>>,
     maxbits: u8,
     family: i32,
+    /// Cached value of socket.AF_INET — resolved once at construction, avoids per-call import.
+    af_inet: i32,
     frozen: bool,
 }
 
@@ -97,6 +93,7 @@ impl PyTricia {
             inner: Arc::new(RwLock::new(inner)),
             maxbits: maxbits as u8,
             family: family as i32,
+            af_inet: af_inet as i32,
             frozen: false,
         })
     }
@@ -113,7 +110,7 @@ impl PyTricia {
         if self.frozen {
             return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
         }
-        let af_inet = get_af_inet(py)?;
+        let af_inet = self.af_inet;
         let net = parse_network_key(key, self.family, af_inet)?;
 
         let prefix_len = net.prefix_len();
@@ -134,7 +131,7 @@ impl PyTricia {
     }
 
     fn has_key(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
-        let af_inet = get_af_inet(py)?;
+        let af_inet = self.af_inet;
         let net = parse_network_key(key, self.family, af_inet)?;
 
         let guard = self.inner.read().unwrap();
@@ -147,7 +144,7 @@ impl PyTricia {
     }
 
     fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<PyObject> {
-        let af_inet = get_af_inet(py)?;
+        let af_inet = self.af_inet;
         let net = parse_key(key, self.family, af_inet)?;
 
         if self.frozen {
@@ -191,7 +188,7 @@ impl PyTricia {
     }
 
     fn __contains__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<bool> {
-        let af_inet = get_af_inet(py)?;
+        let af_inet = self.af_inet;
         let net = match parse_key(key, self.family, af_inet) {
             Ok(n) => n,
             Err(_) => return Ok(false),
@@ -207,7 +204,7 @@ impl PyTricia {
 
     #[pyo3(signature = (key, default=None))]
     fn get(&self, py: Python<'_>, key: &Bound<'_, PyAny>, default: Option<PyObject>) -> PyResult<PyObject> {
-        let af_inet = get_af_inet(py)?;
+        let af_inet = self.af_inet;
         let net = parse_key(key, self.family, af_inet)?;
 
         let guard = self.inner.read().unwrap();
@@ -220,7 +217,7 @@ impl PyTricia {
     }
 
     fn get_key(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
-        let af_inet = get_af_inet(py)?;
+        let af_inet = self.af_inet;
         let net = parse_key(key, self.family, af_inet)?;
 
         let guard = self.inner.read().unwrap();
@@ -243,7 +240,7 @@ impl PyTricia {
         if self.frozen {
             return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
         }
-        let af_inet = get_af_inet(py)?;
+        let af_inet = self.af_inet;
         let net = parse_network_key(key, self.family, af_inet)?;
 
         let mut guard = self.inner.write().unwrap();
@@ -271,7 +268,7 @@ impl PyTricia {
         if self.frozen {
             return Err(PyValueError::new_err("PyTricia is frozen and cannot be modified"));
         }
-        let af_inet = get_af_inet(py)?;
+        let af_inet = self.af_inet;
 
         let (net, val): (IpNet, PyObject) = if let Some(v) = value {
             // 3-arg form: insert(addr, prefixlen, value)
