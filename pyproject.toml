@@ -12,7 +12,7 @@ dependencies = []
 
 [tool.maturin]
 python-source = "."
-module-name = "pattrie"
+module-name = "pattrie._pattrie"
 features = ["pyo3/extension-module"]
 
 [tool.maturin.package-data]
