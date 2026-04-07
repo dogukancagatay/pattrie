@@ -1,0 +1,7 @@
+# Type-only aliases defined in the stub; not present in the compiled extension at runtime.
+pattrie\._pattrie\.NetworkKey
+pattrie\._pattrie\.AddressKey
+
+# pyo3 exposes generic positional-only parameter names (key_or_addr, value_or_prefixlen).
+# The stub uses user-friendly overload names (prefix, addr, prefixlen, value).
+pattrie\._pattrie\.Pattrie\.insert
