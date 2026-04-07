@@ -30,6 +30,9 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mike deploy --push --update-aliases "$VERSION" latest
+          mike set-default --push latest
       - name: Deploy dev docs (push to main)
         if: github.event_name == 'push'
-        run: mike deploy --push dev
+        run: |
+          mike deploy --push dev
+          mike list | grep -q "^latest" || mike set-default --push dev
