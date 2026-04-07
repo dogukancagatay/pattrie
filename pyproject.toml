@@ -32,6 +32,13 @@ features = ["pyo3/extension-module"]
 [tool.maturin.package-data]
 pattrie = ["py.typed", "*.pyi"]
 
+[project.optional-dependencies]
+docs = [
+    "mkdocs-material>=9",
+    "mkdocstrings[python]>=0.25",
+    "mike>=2",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=7",
@@ -42,6 +49,7 @@ dev = [
     "ty>=0.0.1",
     "pytest-cov>=7.1.0",
     "pre-commit>=4",
+    "mypy>=1",
 ]
 
 [tool.ruff]

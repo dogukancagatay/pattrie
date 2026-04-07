@@ -34,6 +34,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Build and install
-        run: pip install . pytest
+        run: pip install . pytest mypy
       - name: Test
         run: pytest tests/ -v
+      - name: Stub type-check
+        run: python -m mypy.stubtest pattrie._pattrie --allowlist "$GITHUB_WORKSPACE/.stubtest-allowlist"
+        working-directory: ${{ runner.temp }}

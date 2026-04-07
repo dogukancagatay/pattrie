@@ -108,6 +108,9 @@ fn parse_network_key(py: Python<'_>, key: &Bound<'_, PyAny>, family: i32, af_ine
     Ok(parse_key(py, key, family, af_inet)?.trunc())
 }
 
+/// A longest-prefix-match (LPM) IP prefix trie.
+///
+/// See the Python stub (`pattrie/_pattrie.pyi`) for full documentation.
 #[pyclass(name = "Pattrie", module = "pattrie")]
 struct Pattrie {
     inner: Arc<RwLock<TrieInner>>,
@@ -384,10 +387,6 @@ impl Pattrie {
         }
     }
 
-    /// Look up multiple keys in one call, returning a list of values (or `default` on miss).
-    ///
-    /// When the trie is frozen, the entire batch of trie traversals runs without the GIL,
-    /// enabling true parallel use from multiple threads.
     #[pyo3(signature = (keys, default=None))]
     fn get_many(
         &self,
@@ -541,17 +540,6 @@ impl Pattrie {
         Ok(())
     }
 
-    /// Serialize a frozen trie to a binary file.
-    ///
-    /// File format (all integers little-endian):
-    ///   [0..4]   magic:         b"PTRI"
-    ///   [4..8]   version:       u32 = 1
-    ///   [8..12]  family:        u32  (AF_INET or AF_INET6 value)
-    ///   [12..16] maxbits:       u32
-    ///   [16..24] entry_count:   u64
-    ///   [24..32] values_offset: u64  (byte offset of pickle section)
-    ///   [32..]   entries:       entry_count × (4+1 bytes for IPv4 | 16+1 bytes for IPv6)
-    ///   [values_offset..] pickle.dumps(list_of_values)
     fn dump(&self, py: Python<'_>, path: std::path::PathBuf) -> PyResult<()> {
         if !self.frozen {
             return Err(PyValueError::new_err("dump() requires a frozen trie; call freeze() first"));
@@ -599,8 +587,6 @@ impl Pattrie {
         Ok(())
     }
 
-    /// Load a trie from a file previously written by `dump()`.
-    /// The returned trie is frozen.
     #[classmethod]
     fn load(_cls: &Bound<'_, PyType>, py: Python<'_>, path: std::path::PathBuf) -> PyResult<Py<Self>> {
         use memmap2::Mmap;
