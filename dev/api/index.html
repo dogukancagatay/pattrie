@@ -555,6 +555,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.parent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pattrie.Pattrie.dump" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -786,6 +797,17 @@
     <span class="md-ellipsis">
       
         children
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.parent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parent
       
     </span>
   </a>
@@ -1785,6 +1807,160 @@ t.children(&quot;10.0.0.0/9&quot;)          # not stored, strict=False
 
 t.children(&quot;10.0.0.0/9&quot;, strict=True)   # not stored
 # → []
+</code></pre>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.parent" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">parent</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">,</span> <span class="n">strict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the closest covering prefix for <code>prefix</code>.</p>
+<p>Returns the longest stored prefix that contains <code>prefix</code> but is not
+<code>prefix</code> itself — i.e. the immediate ancestor in the stored prefix
+hierarchy. Returns <code>None</code> if no covering prefix exists.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>prefix</code>
+            </td>
+            <td>
+                  <code><span title="pattrie._pattrie.NetworkKey">NetworkKey</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The prefix to query (CIDR string, <code>IPv4Network</code>, or
+<code>IPv6Network</code>). Host bits are zeroed before lookup.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>strict</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>False</code> (default), find the covering prefix for any
+input, even if <code>prefix</code> is not itself stored in the trie.
+If <code>True</code>, raise <code>KeyError</code> when <code>prefix</code> is not stored.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The CIDR string of the longest stored prefix that covers</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>prefix</code>, or <code>None</code> if no such prefix exists.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="KeyError">KeyError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>strict=True</code> and <code>prefix</code> is not stored.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>prefix</code> belongs to the wrong address family or
+is malformed.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <pre><code class="language-python">t = Pattrie()
+t[&quot;10.0.0.0/8&quot;] = &quot;a&quot;
+t[&quot;10.1.0.0/16&quot;] = &quot;b&quot;
+t[&quot;10.1.1.0/24&quot;] = &quot;c&quot;
+
+t.parent(&quot;10.1.1.0/24&quot;)               # → &quot;10.1.0.0/16&quot;
+t.parent(&quot;10.1.0.0/16&quot;)               # → &quot;10.0.0.0/8&quot;
+t.parent(&quot;10.0.0.0/8&quot;)                # → None
+
+t.parent(&quot;10.2.0.0/16&quot;)               # → &quot;10.0.0.0/8&quot;  (not stored, strict=False)
+t.parent(&quot;10.2.0.0/16&quot;, strict=True)  # → KeyError
 </code></pre>
 </details>
 
