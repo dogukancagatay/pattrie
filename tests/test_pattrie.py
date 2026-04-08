@@ -852,3 +852,105 @@ def test_children_no_match_outside_range():
     t = pattrie.Pattrie()
     t["192.168.0.0/16"] = "a"
     assert t.children("10.0.0.0/8") == []
+
+
+# ---------------------------------------------------------------------------
+# parent()
+# ---------------------------------------------------------------------------
+
+
+def test_parent_basic():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t["10.1.1.0/24"] = "c"
+    assert t.parent("10.1.1.0/24") == "10.1.0.0/16"
+    assert t.parent("10.1.0.0/16") == "10.0.0.0/8"
+    assert t.parent("10.0.0.0/8") is None
+
+
+def test_parent_returns_closest_not_distant_ancestor():
+    """parent() returns the most specific (closest) covering prefix."""
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    # query a prefix not stored, covered by both /8 and /16
+    # must return /16 (closest), not /8 (distant ancestor)
+    assert t.parent("10.1.1.0/24") == "10.1.0.0/16"
+
+
+def test_parent_strict_false_unstored_prefix():
+    """strict=False (default): find covering prefix even if input is not stored."""
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    # 10.2.0.0/16 is not stored but is covered by 10.0.0.0/8
+    assert t.parent("10.2.0.0/16") == "10.0.0.0/8"
+
+
+def test_parent_strict_true_unstored_raises():
+    """strict=True raises KeyError when prefix is not stored."""
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    with pytest.raises(KeyError):
+        t.parent("10.2.0.0/16", strict=True)
+
+
+def test_parent_strict_true_stored_returns_parent():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert t.parent("10.1.0.0/16", strict=True) == "10.0.0.0/8"
+
+
+def test_parent_no_covering_prefix_returns_none():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["192.168.0.0/16"] = "b"
+    assert t.parent("192.168.0.0/16") is None
+
+
+def test_parent_empty_trie():
+    t = pattrie.Pattrie()
+    assert t.parent("10.0.0.0/8") is None
+    with pytest.raises(KeyError):
+        t.parent("10.0.0.0/8", strict=True)
+
+
+def test_parent_wrong_family_raises():
+    t = pattrie.Pattrie()
+    with pytest.raises(ValueError):
+        t.parent("fe80::/32")
+
+
+def test_parent_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "a"
+    t["fe80::/32"] = "b"
+    t["fe80::/48"] = "c"
+    assert t.parent("fe80::/48") == "fe80::/32"
+    assert t.parent("fe80::/32") == "fe80::/16"
+    assert t.parent("fe80::/16") is None
+
+
+def test_parent_ipv6_strict_unstored_raises():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "a"
+    t["fe80::/32"] = "b"
+    t["fe80::/48"] = "c"
+    with pytest.raises(KeyError):
+        t.parent("fe80::/24", strict=True)
+
+
+def test_parent_ipv6_strict_stored_with_parent():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "a"
+    t["fe80::/32"] = "b"
+    t["fe80::/48"] = "c"
+    assert t.parent("fe80::/32", strict=True) == "fe80::/16"
+
+
+def test_parent_strict_true_top_level_prefix():
+    """strict=True, stored prefix with no parent returns None (not KeyError)."""
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    assert t.parent("10.0.0.0/8", strict=True) is None

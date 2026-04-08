@@ -2,10 +2,27 @@ use pyo3::prelude::*;
 use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::intern;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple, PyType};
-use prefix_trie::PrefixMap;
+use prefix_trie::{Prefix, PrefixMap};
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use std::sync::{Arc, RwLock};
 use std::io::Write;
+
+/// Find the closest covering prefix (immediate parent) for `prefix` in `map`.
+/// cover_keys yields ancestors from least- to most-specific; .last() returns the
+/// most-specific ancestor in a single pass. cover_keys does not implement
+/// DoubleEndedIterator so .rev() is unavailable.
+fn find_parent<P, T>(map: &PrefixMap<P, T>, prefix: &P, strict: bool) -> PyResult<Option<String>>
+where
+    P: Prefix + PartialEq + std::fmt::Display,
+{
+    if strict && !map.contains_key(prefix) {
+        return Err(PyKeyError::new_err(format!("Prefix not found: {}", prefix)));
+    }
+    Ok(map.cover_keys(prefix)
+        .filter(|p| *p != prefix)
+        .last()
+        .map(|p| p.to_string()))
+}
 
 enum TrieInner {
     V4(PrefixMap<Ipv4Net, Py<PyAny>>),
@@ -412,6 +429,19 @@ impl Pattrie {
                     .map(|(p, _)| p.to_string())
                     .collect())
             }
+            _ => unreachable!(),
+        }
+    }
+
+    #[pyo3(signature = (prefix, strict=false))]
+    fn parent(&self, py: Python<'_>, prefix: &Bound<'_, PyAny>, strict: bool) -> PyResult<Option<String>> {
+        let af_inet = self.af_inet;
+        let net = parse_network_key(py, prefix, self.family, af_inet)?;
+
+        let guard = self.inner.read().unwrap();
+        match (&*guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => find_parent(map, &v4, strict),
+            (TrieInner::V6(map), IpNet::V6(v6)) => find_parent(map, &v6, strict),
             _ => unreachable!(),
         }
     }

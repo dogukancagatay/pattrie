@@ -234,6 +234,46 @@ class Pattrie:
         """
         ...
 
+    def parent(self, prefix: NetworkKey, strict: bool = False) -> str | None:
+        """Return the closest covering prefix for ``prefix``.
+
+        Returns the longest stored prefix that contains ``prefix`` but is not
+        ``prefix`` itself — i.e. the immediate ancestor in the stored prefix
+        hierarchy. Returns ``None`` if no covering prefix exists.
+
+        Args:
+            prefix: The prefix to query (CIDR string, ``IPv4Network``, or
+                ``IPv6Network``). Host bits are zeroed before lookup.
+            strict: If ``False`` (default), find the covering prefix for any
+                input, even if ``prefix`` is not itself stored in the trie.
+                If ``True``, raise ``KeyError`` when ``prefix`` is not stored.
+
+        Returns:
+            The CIDR string of the longest stored prefix that covers
+            ``prefix``, or ``None`` if no such prefix exists.
+
+        Raises:
+            KeyError: If ``strict=True`` and ``prefix`` is not stored.
+            ValueError: If ``prefix`` belongs to the wrong address family or
+                is malformed.
+
+        Example:
+            ```python
+            t = Pattrie()
+            t["10.0.0.0/8"] = "a"
+            t["10.1.0.0/16"] = "b"
+            t["10.1.1.0/24"] = "c"
+
+            t.parent("10.1.1.0/24")               # → "10.1.0.0/16"
+            t.parent("10.1.0.0/16")               # → "10.0.0.0/8"
+            t.parent("10.0.0.0/8")                # → None
+
+            t.parent("10.2.0.0/16")               # → "10.0.0.0/8"  (not stored, strict=False)
+            t.parent("10.2.0.0/16", strict=True)  # → KeyError
+            ```
+        """
+        ...
+
     def __getstate__(self) -> dict[str, object]: ...
     def __setstate__(self, state: dict[str, object]) -> None: ...
     def dump(self, path: str | os.PathLike[str]) -> None:
