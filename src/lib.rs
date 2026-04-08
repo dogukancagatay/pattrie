@@ -7,21 +7,27 @@ use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use std::sync::{Arc, RwLock};
 use std::io::Write;
 
-/// Find the closest covering prefix (immediate parent) for `prefix` in `map`.
-/// cover_keys yields ancestors from least- to most-specific; .last() returns the
-/// most-specific ancestor in a single pass. cover_keys does not implement
-/// DoubleEndedIterator so .rev() is unavailable.
-fn find_parent<P, T>(map: &PrefixMap<P, T>, prefix: &P, strict: bool) -> PyResult<Option<String>>
+/// Find the closest covering prefix (immediate parent) for `prefix`.
+/// Uses `.last()` on cover_keys — DoubleEndedIterator is unavailable so .rev() cannot be used.
+fn find_parent<P, T>(map: &PrefixMap<P, T>, prefix: &P) -> Option<String>
 where
     P: Prefix + PartialEq + std::fmt::Display,
 {
-    if strict && !map.contains_key(prefix) {
-        return Err(PyKeyError::new_err(format!("Prefix not found: {}", prefix)));
-    }
-    Ok(map.cover_keys(prefix)
+    map.cover_keys(prefix)
         .filter(|p| *p != prefix)
         .last()
-        .map(|p| p.to_string()))
+        .map(|p| p.to_string())
+}
+
+/// Collect all stored prefixes more specific than `prefix` (self excluded).
+fn find_children<P, T>(map: &PrefixMap<P, T>, prefix: &P) -> Vec<String>
+where
+    P: Prefix + PartialEq + std::fmt::Display,
+{
+    map.children(prefix)
+        .filter(|(p, _)| *p != prefix)
+        .map(|(p, _)| p.to_string())
+        .collect()
 }
 
 enum TrieInner {
@@ -404,46 +410,28 @@ impl Pattrie {
         }
     }
 
-    #[pyo3(signature = (prefix, strict=false))]
-    fn children(&self, py: Python<'_>, prefix: &Bound<'_, PyAny>, strict: bool) -> PyResult<Vec<String>> {
+    fn children(&self, py: Python<'_>, prefix: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
         let af_inet = self.af_inet;
         let net = parse_network_key(py, prefix, self.family, af_inet)?;
 
         let guard = self.inner.read().unwrap();
-        match (&*guard, net) {
-            (TrieInner::V4(map), IpNet::V4(v4)) => {
-                if strict && !map.contains_key(&v4) {
-                    return Ok(vec![]);
-                }
-                Ok(map.children(&v4)
-                    .filter(|(p, _)| *p != &v4)
-                    .map(|(p, _)| p.to_string())
-                    .collect())
-            }
-            (TrieInner::V6(map), IpNet::V6(v6)) => {
-                if strict && !map.contains_key(&v6) {
-                    return Ok(vec![]);
-                }
-                Ok(map.children(&v6)
-                    .filter(|(p, _)| *p != &v6)
-                    .map(|(p, _)| p.to_string())
-                    .collect())
-            }
+        Ok(match (&*guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => find_children(map, &v4),
+            (TrieInner::V6(map), IpNet::V6(v6)) => find_children(map, &v6),
             _ => unreachable!(),
-        }
+        })
     }
 
-    #[pyo3(signature = (prefix, strict=false))]
-    fn parent(&self, py: Python<'_>, prefix: &Bound<'_, PyAny>, strict: bool) -> PyResult<Option<String>> {
+    fn parent(&self, py: Python<'_>, prefix: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
         let af_inet = self.af_inet;
         let net = parse_network_key(py, prefix, self.family, af_inet)?;
 
         let guard = self.inner.read().unwrap();
-        match (&*guard, net) {
-            (TrieInner::V4(map), IpNet::V4(v4)) => find_parent(map, &v4, strict),
-            (TrieInner::V6(map), IpNet::V6(v6)) => find_parent(map, &v6, strict),
+        Ok(match (&*guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => find_parent(map, &v4),
+            (TrieInner::V6(map), IpNet::V6(v6)) => find_parent(map, &v6),
             _ => unreachable!(),
-        }
+        })
     }
 
     #[pyo3(signature = (keys, default=None))]

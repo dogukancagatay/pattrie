@@ -191,20 +191,17 @@ class Pattrie:
         """Return a list of all stored prefixes as CIDR strings."""
         ...
 
-    def children(self, prefix: NetworkKey, strict: bool = False) -> list[str]:
+    def children(self, prefix: NetworkKey) -> list[str]:
         """Return all prefixes in the trie more specific than ``prefix``.
 
         Uses longest-prefix containment: any stored prefix whose address
         range is entirely within ``prefix`` is included at any depth.
         The queried ``prefix`` itself is never included in the result.
+        Returns ``[]`` when no descendants exist or the trie is empty.
 
         Args:
             prefix: The parent prefix to query (CIDR string, ``IPv4Network``,
-                or ``IPv6Network``).
-            strict: If ``False`` (default), return descendants even if
-                ``prefix`` is not itself stored in the trie — useful for
-                querying under an aggregating or virtual prefix.
-                If ``True``, return ``[]`` when ``prefix`` is not stored.
+                or ``IPv6Network``). Host bits are zeroed before lookup.
 
         Returns:
             A list of CIDR strings for all stored prefixes contained within
@@ -225,16 +222,13 @@ class Pattrie:
             t.children("10.0.0.0/8")
             # → ["10.1.0.0/16", "10.1.1.0/24", "10.2.0.0/16"]
 
-            t.children("10.0.0.0/9")          # not stored, strict=False
+            t.children("10.0.0.0/9")   # not stored — still returns descendants
             # → ["10.1.0.0/16", "10.1.1.0/24"]
-
-            t.children("10.0.0.0/9", strict=True)   # not stored
-            # → []
             ```
         """
         ...
 
-    def parent(self, prefix: NetworkKey, strict: bool = False) -> str | None:
+    def parent(self, prefix: NetworkKey) -> str | None:
         """Return the closest covering prefix for ``prefix``.
 
         Returns the longest stored prefix that contains ``prefix`` but is not
@@ -244,16 +238,12 @@ class Pattrie:
         Args:
             prefix: The prefix to query (CIDR string, ``IPv4Network``, or
                 ``IPv6Network``). Host bits are zeroed before lookup.
-            strict: If ``False`` (default), find the covering prefix for any
-                input, even if ``prefix`` is not itself stored in the trie.
-                If ``True``, raise ``KeyError`` when ``prefix`` is not stored.
 
         Returns:
             The CIDR string of the longest stored prefix that covers
             ``prefix``, or ``None`` if no such prefix exists.
 
         Raises:
-            KeyError: If ``strict=True`` and ``prefix`` is not stored.
             ValueError: If ``prefix`` belongs to the wrong address family or
                 is malformed.
 
@@ -264,12 +254,11 @@ class Pattrie:
             t["10.1.0.0/16"] = "b"
             t["10.1.1.0/24"] = "c"
 
-            t.parent("10.1.1.0/24")               # → "10.1.0.0/16"
-            t.parent("10.1.0.0/16")               # → "10.0.0.0/8"
-            t.parent("10.0.0.0/8")                # → None
+            t.parent("10.1.1.0/24")   # → "10.1.0.0/16"
+            t.parent("10.1.0.0/16")   # → "10.0.0.0/8"
+            t.parent("10.0.0.0/8")    # → None
 
-            t.parent("10.2.0.0/16")               # → "10.0.0.0/8"  (not stored, strict=False)
-            t.parent("10.2.0.0/16", strict=True)  # → KeyError
+            t.parent("10.2.0.0/16")   # → "10.0.0.0/8"  (not stored — still works)
             ```
         """
         ...
