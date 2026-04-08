@@ -668,6 +668,13 @@ wheels = [
 name = "pattrie"
 source = { editable = "." }
 
+[package.optional-dependencies]
+docs = [
+    { name = "mike" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
@@ -680,13 +687,14 @@ dev = [
     { name = "ruff" },
     { name = "ty" },
 ]
-docs = [
-    { name = "mike" },
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
-]
 
 [package.metadata]
+requires-dist = [
+    { name = "mike", marker = "extra == 'docs'", specifier = ">=2" },
+    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9" },
+    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.25" },
+]
+provides-extras = ["docs"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -699,11 +707,6 @@ dev = [
     { name = "pytricia" },
     { name = "ruff", specifier = ">=0.11" },
     { name = "ty", specifier = ">=0.0.1" },
-]
-docs = [
-    { name = "mike", specifier = ">=2" },
-    { name = "mkdocs-material", specifier = ">=9" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25" },
 ]
 
 [[package]]

@@ -191,6 +191,49 @@ class Pattrie:
         """Return a list of all stored prefixes as CIDR strings."""
         ...
 
+    def children(self, prefix: NetworkKey, strict: bool = False) -> list[str]:
+        """Return all prefixes in the trie more specific than ``prefix``.
+
+        Uses longest-prefix containment: any stored prefix whose address
+        range is entirely within ``prefix`` is included at any depth.
+        The queried ``prefix`` itself is never included in the result.
+
+        Args:
+            prefix: The parent prefix to query (CIDR string, ``IPv4Network``,
+                or ``IPv6Network``).
+            strict: If ``False`` (default), return descendants even if
+                ``prefix`` is not itself stored in the trie — useful for
+                querying under an aggregating or virtual prefix.
+                If ``True``, return ``[]`` when ``prefix`` is not stored.
+
+        Returns:
+            A list of CIDR strings for all stored prefixes contained within
+            ``prefix``. Order is lexicographic (prefix-trie traversal order).
+
+        Raises:
+            ValueError: If ``prefix`` belongs to the wrong address family or
+                is malformed.
+
+        Example:
+            ```python
+            t = Pattrie()
+            t["10.0.0.0/8"] = "a"
+            t["10.1.0.0/16"] = "b"
+            t["10.1.1.0/24"] = "c"
+            t["10.2.0.0/16"] = "d"
+
+            t.children("10.0.0.0/8")
+            # → ["10.1.0.0/16", "10.1.1.0/24", "10.2.0.0/16"]
+
+            t.children("10.0.0.0/9")          # not stored, strict=False
+            # → ["10.1.0.0/16", "10.1.1.0/24"]
+
+            t.children("10.0.0.0/9", strict=True)   # not stored
+            # → []
+            ```
+        """
+        ...
+
     def __getstate__(self) -> dict[str, object]: ...
     def __setstate__(self, state: dict[str, object]) -> None: ...
     def dump(self, path: str | os.PathLike[str]) -> None:

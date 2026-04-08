@@ -773,3 +773,82 @@ def test_get_many_preserves_order():
     ips = [f"{i}.1.2.3" for i in range(9, -1, -1)]
     result = t.get_many(ips)
     assert result == list(range(9, -1, -1))
+
+
+# ---------------------------------------------------------------------------
+# children()
+# ---------------------------------------------------------------------------
+
+
+def test_children_basic():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t["10.1.1.0/24"] = "c"
+    t["10.2.0.0/16"] = "d"
+    result = sorted(t.children("10.0.0.0/8"))
+    assert result == ["10.1.0.0/16", "10.1.1.0/24", "10.2.0.0/16"]
+
+
+def test_children_excludes_self():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert "10.0.0.0/8" not in t.children("10.0.0.0/8")
+
+
+def test_children_empty_no_descendants():
+    t = pattrie.Pattrie()
+    t["10.1.1.0/24"] = "c"
+    assert t.children("10.1.1.0/24") == []
+
+
+def test_children_strict_false_unstored_prefix():
+    """strict=False (default) returns descendants even if prefix not stored."""
+    t = pattrie.Pattrie()
+    t["10.1.0.0/16"] = "b"
+    t["10.1.1.0/24"] = "c"
+    # 10.0.0.0/9 is not stored but contains both prefixes
+    result = sorted(t.children("10.0.0.0/9"))
+    assert result == ["10.1.0.0/16", "10.1.1.0/24"]
+
+
+def test_children_strict_true_unstored_prefix_returns_empty():
+    """strict=True returns [] when prefix is not stored."""
+    t = pattrie.Pattrie()
+    t["10.1.0.0/16"] = "b"
+    assert t.children("10.0.0.0/9", strict=True) == []
+
+
+def test_children_strict_true_stored_prefix_returns_descendants():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    result = t.children("10.0.0.0/8", strict=True)
+    assert sorted(result) == ["10.1.0.0/16"]
+
+
+def test_children_empty_trie():
+    t = pattrie.Pattrie()
+    assert t.children("10.0.0.0/8") == []
+
+
+def test_children_wrong_family_raises():
+    t = pattrie.Pattrie()
+    with pytest.raises(ValueError):
+        t.children("fe80::/32")
+
+
+def test_children_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "a"
+    t["fe80::/32"] = "b"
+    t["fe80::/48"] = "c"
+    result = sorted(t.children("fe80::/16"))
+    assert result == ["fe80::/32", "fe80::/48"]
+
+
+def test_children_no_match_outside_range():
+    t = pattrie.Pattrie()
+    t["192.168.0.0/16"] = "a"
+    assert t.children("10.0.0.0/8") == []

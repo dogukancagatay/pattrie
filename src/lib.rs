@@ -387,6 +387,35 @@ impl Pattrie {
         }
     }
 
+    #[pyo3(signature = (prefix, strict=false))]
+    fn children(&self, py: Python<'_>, prefix: &Bound<'_, PyAny>, strict: bool) -> PyResult<Vec<String>> {
+        let af_inet = self.af_inet;
+        let net = parse_network_key(py, prefix, self.family, af_inet)?;
+
+        let guard = self.inner.read().unwrap();
+        match (&*guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => {
+                if strict && !map.contains_key(&v4) {
+                    return Ok(vec![]);
+                }
+                Ok(map.children(&v4)
+                    .filter(|(p, _)| *p != &v4)
+                    .map(|(p, _)| p.to_string())
+                    .collect())
+            }
+            (TrieInner::V6(map), IpNet::V6(v6)) => {
+                if strict && !map.contains_key(&v6) {
+                    return Ok(vec![]);
+                }
+                Ok(map.children(&v6)
+                    .filter(|(p, _)| *p != &v6)
+                    .map(|(p, _)| p.to_string())
+                    .collect())
+            }
+            _ => unreachable!(),
+        }
+    }
+
     #[pyo3(signature = (keys, default=None))]
     fn get_many(
         &self,
