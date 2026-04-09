@@ -1670,7 +1670,7 @@ longest-prefix semantics.</p>
 
 
 <h3 id="pattrie.Pattrie.children" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">children</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">,</span> <span class="n">strict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></code>
+            <code class="highlight language-python"><span class="n">children</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></code>
 
 </h3>
 
@@ -1680,7 +1680,8 @@ longest-prefix semantics.</p>
         <p>Return all prefixes in the trie more specific than <code>prefix</code>.</p>
 <p>Uses longest-prefix containment: any stored prefix whose address
 range is entirely within <code>prefix</code> is included at any depth.
-The queried <code>prefix</code> itself is never included in the result.</p>
+The queried <code>prefix</code> itself is never included in the result.
+Returns <code>[]</code> when no descendants exist or the trie is empty.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1704,30 +1705,11 @@ The queried <code>prefix</code> itself is never included in the result.</p>
             <td>
               <div class="doc-md-description">
                 <p>The parent prefix to query (CIDR string, <code>IPv4Network</code>,
-or <code>IPv6Network</code>).</p>
+or <code>IPv6Network</code>). Host bits are zeroed before lookup.</p>
               </div>
             </td>
             <td>
                 <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>strict</code>
-            </td>
-            <td>
-                  <code><span title="bool">bool</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>If <code>False</code> (default), return descendants even if
-<code>prefix</code> is not itself stored in the trie — useful for
-querying under an aggregating or virtual prefix.
-If <code>True</code>, return <code>[]</code> when <code>prefix</code> is not stored.</p>
-              </div>
-            </td>
-            <td>
-                  <code>False</code>
             </td>
           </tr>
       </tbody>
@@ -1802,11 +1784,8 @@ t[&quot;10.2.0.0/16&quot;] = &quot;d&quot;
 t.children(&quot;10.0.0.0/8&quot;)
 # → [&quot;10.1.0.0/16&quot;, &quot;10.1.1.0/24&quot;, &quot;10.2.0.0/16&quot;]
 
-t.children(&quot;10.0.0.0/9&quot;)          # not stored, strict=False
+t.children(&quot;10.0.0.0/9&quot;)   # not stored — still returns descendants
 # → [&quot;10.1.0.0/16&quot;, &quot;10.1.1.0/24&quot;]
-
-t.children(&quot;10.0.0.0/9&quot;, strict=True)   # not stored
-# → []
 </code></pre>
 </details>
 
@@ -1818,7 +1797,7 @@ t.children(&quot;10.0.0.0/9&quot;, strict=True)   # not stored
 
 
 <h3 id="pattrie.Pattrie.parent" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">parent</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">,</span> <span class="n">strict</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></code>
+            <code class="highlight language-python"><span class="n">parent</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></code>
 
 </h3>
 
@@ -1857,24 +1836,6 @@ hierarchy. Returns <code>None</code> if no covering prefix exists.</p>
             </td>
             <td>
                 <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>strict</code>
-            </td>
-            <td>
-                  <code><span title="bool">bool</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>If <code>False</code> (default), find the covering prefix for any
-input, even if <code>prefix</code> is not itself stored in the trie.
-If <code>True</code>, raise <code>KeyError</code> when <code>prefix</code> is not stored.</p>
-              </div>
-            </td>
-            <td>
-                  <code>False</code>
             </td>
           </tr>
       </tbody>
@@ -1925,16 +1886,6 @@ If <code>True</code>, raise <code>KeyError</code> when <code>prefix</code> is no
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code><span title="KeyError">KeyError</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>If <code>strict=True</code> and <code>prefix</code> is not stored.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
                   <code><span title="ValueError">ValueError</span></code>
             </td>
             <td>
@@ -1955,12 +1906,11 @@ t[&quot;10.0.0.0/8&quot;] = &quot;a&quot;
 t[&quot;10.1.0.0/16&quot;] = &quot;b&quot;
 t[&quot;10.1.1.0/24&quot;] = &quot;c&quot;
 
-t.parent(&quot;10.1.1.0/24&quot;)               # → &quot;10.1.0.0/16&quot;
-t.parent(&quot;10.1.0.0/16&quot;)               # → &quot;10.0.0.0/8&quot;
-t.parent(&quot;10.0.0.0/8&quot;)                # → None
+t.parent(&quot;10.1.1.0/24&quot;)   # → &quot;10.1.0.0/16&quot;
+t.parent(&quot;10.1.0.0/16&quot;)   # → &quot;10.0.0.0/8&quot;
+t.parent(&quot;10.0.0.0/8&quot;)    # → None
 
-t.parent(&quot;10.2.0.0/16&quot;)               # → &quot;10.0.0.0/8&quot;  (not stored, strict=False)
-t.parent(&quot;10.2.0.0/16&quot;, strict=True)  # → KeyError
+t.parent(&quot;10.2.0.0/16&quot;)   # → &quot;10.0.0.0/8&quot;  (not stored — still works)
 </code></pre>
 </details>
 
