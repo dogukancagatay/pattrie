@@ -544,6 +544,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        items
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pattrie.Pattrie.children" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -786,6 +808,28 @@
     <span class="md-ellipsis">
       
         keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        items
       
     </span>
   </a>
@@ -1660,6 +1704,46 @@ longest-prefix semantics.</p>
     <div class="doc doc-contents ">
 
         <p>Return a list of all stored prefixes as CIDR strings.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.values" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">values</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">object</span><span class="p">]</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return a list of all stored values in trie traversal order.</p>
+<p>Order matches <code>keys()</code> — the <em>i</em>-th value corresponds to the
+<em>i</em>-th key.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.items" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">items</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return a list of <code>(prefix, value)</code> pairs in trie traversal order.</p>
+<p>Each element is a two-tuple of the CIDR prefix string and its
+associated value, in the same order as <code>keys()</code>.</p>
 
 
     </div>
