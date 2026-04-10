@@ -776,6 +776,84 @@ def test_get_many_preserves_order():
 
 
 # ---------------------------------------------------------------------------
+# values()
+# ---------------------------------------------------------------------------
+
+
+def test_values_basic():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t["192.168.0.0/16"] = "c"
+    assert t.values() == ["a", "b", "c"]
+
+
+def test_values_empty_trie():
+    t = pattrie.Pattrie()
+    assert t.values() == []
+
+
+def test_values_order_matches_keys():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t["192.168.0.0/16"] = "c"
+    keys = t.keys()
+    values = t.values()
+    for k, v in zip(keys, values):
+        assert t[k] == v
+
+
+def test_values_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "link-local"
+    t["2001:db8::/32"] = "docs"
+    vals = t.values()
+    assert len(vals) == 2
+    assert set(vals) == {"link-local", "docs"}
+
+
+# ---------------------------------------------------------------------------
+# items()
+# ---------------------------------------------------------------------------
+
+
+def test_items_basic():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    result = t.items()
+    assert result == [("10.0.0.0/8", "a"), ("10.1.0.0/16", "b")]
+
+
+def test_items_empty_trie():
+    t = pattrie.Pattrie()
+    assert t.items() == []
+
+
+def test_items_order_matches_keys():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t["192.168.0.0/16"] = "c"
+    keys = t.keys()
+    values = t.values()
+    items = t.items()
+    assert items == list(zip(keys, values))
+
+
+def test_items_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "link-local"
+    t["2001:db8::/32"] = "docs"
+    items = t.items()
+    assert len(items) == 2
+    item_dict = dict(items)
+    assert item_dict["fe80::/16"] == "link-local"
+    assert item_dict["2001:db8::/32"] == "docs"
+
+
+# ---------------------------------------------------------------------------
 # children()
 # ---------------------------------------------------------------------------
 

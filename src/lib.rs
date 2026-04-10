@@ -30,6 +30,24 @@ where
         .collect()
 }
 
+/// Collect all stored values in trie traversal order.
+fn collect_values<P: Prefix>(map: &PrefixMap<P, Py<PyAny>>, py: Python<'_>) -> Vec<Py<PyAny>> {
+    map.iter().map(|(_, v)| v.clone_ref(py)).collect()
+}
+
+/// Collect all stored (prefix, value) pairs as Python tuples in trie traversal order.
+fn collect_items<P>(map: &PrefixMap<P, Py<PyAny>>, py: Python<'_>) -> PyResult<Vec<Py<PyAny>>>
+where
+    P: Prefix + std::fmt::Display,
+{
+    map.iter().map(|(p, v)| {
+        PyTuple::new(py, [
+            PyString::new(py, &p.to_string()).into_any().unbind(),
+            v.clone_ref(py),
+        ]).map(|t| t.into_any().unbind())
+    }).collect()
+}
+
 enum TrieInner {
     V4(PrefixMap<Ipv4Net, Py<PyAny>>),
     V6(PrefixMap<Ipv6Net, Py<PyAny>>),
@@ -408,6 +426,22 @@ impl Pattrie {
             TrieInner::V4(map) => map.iter().map(|(p, _)| p.to_string()).collect(),
             TrieInner::V6(map) => map.iter().map(|(p, _)| p.to_string()).collect(),
         }
+    }
+
+    fn values(&self, py: Python<'_>) -> Vec<Py<PyAny>> {
+        let guard = self.inner.read().unwrap();
+        match &*guard {
+            TrieInner::V4(map) => collect_values(map, py),
+            TrieInner::V6(map) => collect_values(map, py),
+        }
+    }
+
+    fn items(&self, py: Python<'_>) -> PyResult<Vec<Py<PyAny>>> {
+        let guard = self.inner.read().unwrap();
+        Ok(match &*guard {
+            TrieInner::V4(map) => collect_items(map, py)?,
+            TrieInner::V6(map) => collect_items(map, py)?,
+        })
     }
 
     fn children(&self, py: Python<'_>, prefix: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {

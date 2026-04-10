@@ -191,6 +191,22 @@ class Pattrie:
         """Return a list of all stored prefixes as CIDR strings."""
         ...
 
+    def values(self) -> list[object]:
+        """Return a list of all stored values in trie traversal order.
+
+        Order matches ``keys()`` — the *i*-th value corresponds to the
+        *i*-th key.
+        """
+        ...
+
+    def items(self) -> list[tuple[str, object]]:
+        """Return a list of ``(prefix, value)`` pairs in trie traversal order.
+
+        Each element is a two-tuple of the CIDR prefix string and its
+        associated value, in the same order as ``keys()``.
+        """
+        ...
+
     def children(self, prefix: NetworkKey) -> list[str]:
         """Return all prefixes in the trie more specific than ``prefix``.
 
