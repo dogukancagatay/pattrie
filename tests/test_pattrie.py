@@ -776,6 +776,101 @@ def test_get_many_preserves_order():
 
 
 # ---------------------------------------------------------------------------
+# insert_many()
+# ---------------------------------------------------------------------------
+
+
+def test_insert_many_basic():
+    t = pattrie.Pattrie()
+    t.insert_many(
+        [
+            ("10.0.0.0/8", "a"),
+            ("192.168.0.0/16", "b"),
+            ("172.16.0.0/12", "c"),
+        ]
+    )
+    assert len(t) == 3
+    assert t["10.1.2.3"] == "a"
+    assert t["192.168.1.1"] == "b"
+    assert t["172.16.0.1"] == "c"
+
+
+def test_insert_many_empty():
+    t = pattrie.Pattrie()
+    t.insert_many([])
+    assert len(t) == 0
+
+
+def test_insert_many_overwrites():
+    t = pattrie.Pattrie()
+    t.insert_many(
+        [
+            ("10.0.0.0/8", "first"),
+            ("10.0.0.0/8", "second"),
+        ]
+    )
+    assert len(t) == 1
+    assert t["10.0.0.0/8"] == "second"
+
+
+def test_insert_many_bad_prefix_raises():
+    """Malformed prefix raises ValueError; the trie is unchanged."""
+    t = pattrie.Pattrie()
+    t["172.16.0.0/12"] = "pre"
+    with pytest.raises(ValueError, match="not-a-prefix"):
+        t.insert_many(
+            [
+                ("10.0.0.0/8", "a"),
+                ("not-a-prefix", "b"),
+                ("192.168.0.0/16", "c"),
+            ]
+        )
+    assert len(t) == 1
+    assert t["172.16.0.1"] == "pre"
+    assert "10.0.0.1" not in t
+    assert "192.168.0.1" not in t
+
+
+def test_insert_many_frozen_raises():
+    t = pattrie.Pattrie()
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.insert_many([("10.0.0.0/8", "a")])
+
+
+def test_insert_many_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t.insert_many(
+        [
+            ("fe80::/16", "link-local"),
+            ("2001:db8::/32", "docs"),
+        ]
+    )
+    assert len(t) == 2
+    assert t["fe80::1"] == "link-local"
+    assert t["2001:db8::1"] == "docs"
+
+
+def test_insert_many_generator():
+    def gen():
+        for i in range(10):
+            yield (f"{i}.0.0.0/8", str(i))
+
+    t = pattrie.Pattrie()
+    t.insert_many(gen())
+    assert len(t) == 10
+    assert t["5.1.2.3"] == "5"
+
+
+def test_insert_many_dict_items():
+    t = pattrie.Pattrie()
+    t.insert_many({"10.0.0.0/8": "a", "192.168.0.0/16": "b"}.items())
+    assert len(t) == 2
+    assert t["10.0.0.1"] == "a"
+    assert t["192.168.0.1"] == "b"
+
+
+# ---------------------------------------------------------------------------
 # values()
 # ---------------------------------------------------------------------------
 

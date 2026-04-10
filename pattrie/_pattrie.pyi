@@ -1,6 +1,6 @@
 import os
 import socket
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import Self, final, overload
 
@@ -63,6 +63,33 @@ class Pattrie:
         ...
     @overload
     def insert(self, addr: AddressKey, prefixlen: int, value: object) -> None: ...
+    def insert_many(self, items: Iterable[tuple[NetworkKey, object]]) -> None:
+        """Insert multiple prefixes in one call.
+
+        Accepts any iterable of ``(prefix, value)`` pairs. All keys are
+        parsed and validated before any insertion begins — if a malformed
+        prefix is encountered, ``ValueError`` is raised and the trie is
+        unchanged. Trie mutations run without the GIL for improved
+        throughput on large loads.
+
+        Args:
+            items: An iterable of ``(prefix, value)`` pairs. Each prefix
+                may be a CIDR string, ``IPv4Network``, or ``IPv6Network``.
+
+        Raises:
+            ValueError: If the trie is frozen, a prefix is malformed, or
+                a prefix length exceeds ``maxbits``.
+
+        Example:
+            ```python
+            t = Pattrie()
+            t.insert_many([
+                ("10.0.0.0/8", "rfc1918"),
+                ("192.168.0.0/16", "home"),
+            ])
+            ```
+        """
+        ...
     def __setitem__(self, key: NetworkKey, value: object, /) -> None:
         """Insert or replace a prefix using `t[prefix] = value`.
 

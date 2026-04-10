@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::intern;
-use pyo3::types::{PyDict, PyList, PyString, PyTuple, PyType};
+use pyo3::types::{PyDict, PyList, PySequence, PyString, PyTuple, PyType};
 use prefix_trie::{Prefix, PrefixMap};
 use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use std::sync::{Arc, RwLock};
@@ -51,6 +51,33 @@ where
 enum TrieInner {
     V4(PrefixMap<Ipv4Net, Py<PyAny>>),
     V6(PrefixMap<Ipv6Net, Py<PyAny>>),
+}
+
+impl TrieInner {
+    fn insert(&mut self, net: IpNet, val: Py<PyAny>) {
+        match (self, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => { map.insert(v4, val); }
+            (TrieInner::V6(map), IpNet::V6(v6)) => { map.insert(v6, val); }
+            _ => unreachable!(),
+        }
+    }
+}
+
+fn check_mutable(frozen: bool) -> PyResult<()> {
+    if frozen {
+        return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
+    }
+    Ok(())
+}
+
+fn validate_prefix_len(prefix_len: u8, maxbits: u8) -> PyResult<()> {
+    if prefix_len > maxbits {
+        return Err(PyValueError::new_err(format!(
+            "Prefix length {} exceeds maxbits {}",
+            prefix_len, maxbits
+        )));
+    }
+    Ok(())
 }
 
 /// Core string parsing logic — shared by parse_key and the GIL-free path in get_many.
@@ -211,26 +238,12 @@ impl Pattrie {
     }
 
     fn __setitem__(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, value: Py<PyAny>) -> PyResult<()> {
-        if self.frozen {
-            return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
-        }
-        let af_inet = self.af_inet;
-        let net = parse_network_key(py, key, self.family, af_inet)?;
-
-        let prefix_len = net.prefix_len();
-        if prefix_len > self.maxbits {
-            return Err(PyValueError::new_err(format!(
-                "Prefix length {} exceeds maxbits {}",
-                prefix_len, self.maxbits
-            )));
-        }
+        check_mutable(self.frozen)?;
+        let net = parse_network_key(py, key, self.family, self.af_inet)?;
+        validate_prefix_len(net.prefix_len(), self.maxbits)?;
 
         let mut guard = self.inner.write().unwrap();
-        match (&mut *guard, net) {
-            (TrieInner::V4(map), IpNet::V4(v4)) => { map.insert(v4, value.clone_ref(py)); }
-            (TrieInner::V6(map), IpNet::V6(v6)) => { map.insert(v6, value.clone_ref(py)); }
-            _ => unreachable!(),
-        }
+        guard.insert(net, value.clone_ref(py));
         Ok(())
     }
 
@@ -338,11 +351,8 @@ impl Pattrie {
     }
 
     fn delete(&mut self, _py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<()> {
-        if self.frozen {
-            return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
-        }
-        let af_inet = self.af_inet;
-        let net = parse_network_key(_py, key, self.family, af_inet)?;
+        check_mutable(self.frozen)?;
+        let net = parse_network_key(_py, key, self.family, self.af_inet)?;
 
         let mut guard = self.inner.write().unwrap();
         let removed = match (&mut *guard, net) {
@@ -360,16 +370,13 @@ impl Pattrie {
 
     #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]
     fn insert(
-        &mut self,
+        &self,
         py: Python<'_>,
         key_or_addr: &Bound<'_, PyAny>,
         value_or_prefixlen: &Bound<'_, PyAny>,
         value: Option<Py<PyAny>>,
     ) -> PyResult<()> {
-        if self.frozen {
-            return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
-        }
-        let af_inet = self.af_inet;
+        check_mutable(self.frozen)?;
 
         let (net, val): (IpNet, Py<PyAny>) = if let Some(v) = value {
             // 3-arg form: insert(addr, prefixlen, value)
@@ -387,30 +394,55 @@ impl Pattrie {
                 }
             };
             let is_v4 = matches!(net, IpNet::V4(_));
-            if (self.family == af_inet) != is_v4 {
+            if (self.family == self.af_inet) != is_v4 {
                 return Err(PyValueError::new_err("Address family mismatch"));
             }
             (net, v)
         } else {
             // 2-arg form: insert(prefix, value)
-            let net = parse_network_key(py, key_or_addr, self.family, af_inet)?;
+            let net = parse_network_key(py, key_or_addr, self.family, self.af_inet)?;
             (net, value_or_prefixlen.clone().unbind())
         };
 
-        let prefix_len = net.prefix_len();
-        if prefix_len > self.maxbits {
-            return Err(PyValueError::new_err(format!(
-                "Prefix length {} exceeds maxbits {}",
-                prefix_len, self.maxbits
-            )));
-        }
+        validate_prefix_len(net.prefix_len(), self.maxbits)?;
 
         let mut guard = self.inner.write().unwrap();
-        match (&mut *guard, net) {
-            (TrieInner::V4(map), IpNet::V4(v4)) => { map.insert(v4, val); }
-            (TrieInner::V6(map), IpNet::V6(v6)) => { map.insert(v6, val); }
-            _ => unreachable!(),
+        guard.insert(net, val);
+        Ok(())
+    }
+
+    fn insert_many(&self, py: Python<'_>, items: &Bound<'_, PyAny>) -> PyResult<()> {
+        check_mutable(self.frozen)?;
+
+        let mut entries: Vec<(IpNet, Py<PyAny>)> = Vec::new();
+        for item_result in items.try_iter()? {
+            let item = item_result?;
+            let seq = item.cast::<PySequence>().map_err(|_| {
+                PyValueError::new_err("Expected (prefix, value) pair, got non-sequence")
+            })?;
+            let len = seq.len()?;
+            if len != 2 {
+                return Err(PyValueError::new_err(format!(
+                    "Expected (prefix, value) pair, got sequence of length {}",
+                    len
+                )));
+            }
+            let key = seq.get_item(0)?;
+            let value: Py<PyAny> = seq.get_item(1)?.unbind();
+            let net = parse_network_key(py, &key, self.family, self.af_inet)?;
+            validate_prefix_len(net.prefix_len(), self.maxbits)?;
+            entries.push((net, value));
         }
+
+        // Parsing above needs the GIL for PyObject access; the trie write does not.
+        let inner_arc = Arc::clone(&self.inner);
+        py.detach(move || {
+            let mut guard = inner_arc.write().unwrap();
+            for (net, val) in entries {
+                guard.insert(net, val);
+            }
+        });
+
         Ok(())
     }
 
