@@ -309,6 +309,10 @@ class Pattrie:
             Bare output is lossy — the prefix length is discarded and the
             result cannot be round-tripped back into the same prefix.
             Use this flag for display or interop, not for re-insertion.
+            Two distinct prefixes with the same network address but different
+            lengths (e.g. ``"10.0.0.0/8"`` and ``"10.0.0.0/16"``) produce
+            duplicate bare keys — building a ``dict`` from bare output will
+            silently drop all but one entry for each collision.
         """
         ...
 
@@ -335,6 +339,10 @@ class Pattrie:
             Bare output is lossy — the prefix length is discarded and the
             result cannot be round-tripped back into the same prefix.
             Use this flag for display or interop, not for re-insertion.
+            Two distinct prefixes with the same network address but different
+            lengths (e.g. ``"10.0.0.0/8"`` and ``"10.0.0.0/16"``) produce
+            duplicate bare keys — ``dict(t.items(bare=True))`` will silently
+            drop all but one entry for each collision.
         """
         ...
 

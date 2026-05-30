@@ -1882,3 +1882,28 @@ def test_get_key_bare_ipv6():
 def test_get_key_bare_none_on_miss():
     t = pattrie.Pattrie()
     assert t.get_key("10.1.2.3", bare=True) is None
+
+
+def test_keys_bare_duplicate_when_same_network_address():
+    # Two prefixes sharing the same network address but different lengths
+    # produce duplicate bare keys — this is expected (documented) lossy behavior.
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.0.0.0/16"] = "b"
+    result = t.keys(bare=True)
+    assert result == ["10.0.0.0", "10.0.0.0"]
+
+
+def test_items_bare_duplicate_keys_dict_loses_entry():
+    # Documented: dict(items(bare=True)) silently drops the less-specific entry
+    # when two prefixes share the same network address.
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.0.0.0/16"] = "b"
+    pairs = t.items(bare=True)
+    assert len(pairs) == 2
+    assert pairs[0][0] == "10.0.0.0"
+    assert pairs[1][0] == "10.0.0.0"
+    # dict() collapses duplicates — the second value wins
+    d = dict(pairs)  # type: ignore[arg-type]
+    assert len(d) == 1
