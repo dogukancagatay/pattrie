@@ -1322,7 +1322,11 @@ def test_get_all_full_chain():
     t["10.0.0.0/8"] = "rfc1918"
     t["10.1.0.0/16"] = "internal"
     result = t.get_all("10.1.2.3")
-    assert result == [("10.1.0.0/16", "internal"), ("10.0.0.0/8", "rfc1918"), ("0.0.0.0/0", "default")]
+    assert result == [
+        ("10.1.0.0/16", "internal"),
+        ("10.0.0.0/8", "rfc1918"),
+        ("0.0.0.0/0", "default"),
+    ]
 
 
 def test_get_all_no_match_returns_empty():
@@ -1408,6 +1412,43 @@ def test_get_all_ipv4network_key():
     t["10.0.0.0/8"] = "a"
     t["10.1.0.0/16"] = "b"
     assert t.get_all(IPv4Network("10.1.0.0/16")) == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+def test_get_all_ipv6address_key():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "a"
+    t["fe80::/32"] = "b"
+    t["fe80::/48"] = "c"
+    result = t.get_all(IPv6Address("fe80::1"))
+    assert result == [("fe80::/48", "c"), ("fe80::/32", "b"), ("fe80::/16", "a")]
+
+
+def test_get_all_ipv6network_key():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "a"
+    t["fe80::/32"] = "b"
+    t["fe80::/48"] = "c"
+    result = t.get_all(IPv6Network("fe80::1/128"))
+    assert result == [("fe80::/48", "c"), ("fe80::/32", "b"), ("fe80::/16", "a")]
+
+
+def test_get_all_int_key_ipv4():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
+    key_int = int.from_bytes(raw, "big")
+    assert t.get_all(key_int) == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+def test_get_all_int_key_ipv6_raises():
+    # Bare int keys are IPv4-only (u32); a 128-bit int on an IPv6 trie raises ValueError.
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "a"
+    raw = socket.inet_pton(socket.AF_INET6, "2001:db8:1::1234")
+    key_int = int.from_bytes(raw, "big")
+    with pytest.raises(ValueError):
+        t.get_all(key_int)
 
 
 def test_get_all_frozen_trie():
