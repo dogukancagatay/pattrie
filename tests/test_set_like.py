@@ -191,6 +191,12 @@ def test_discard_malformed_raises():
         t.discard("not-a-prefix")
 
 
+def test_discard_exceeds_maxbits_raises():
+    t = pattrie.Pattrie(24)
+    with pytest.raises(ValueError):
+        t.discard("10.0.0.0/25")
+
+
 # ---------------------------------------------------------------------------
 # LPM / membership methods unaffected by valueless prefixes
 # ---------------------------------------------------------------------------

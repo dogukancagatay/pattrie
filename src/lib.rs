@@ -1092,7 +1092,7 @@ impl Pattrie {
         let exists = match (&*guard, &net) {
             (TrieInner::V4(map), IpNet::V4(v4)) => map.contains_key(v4),
             (TrieInner::V6(map), IpNet::V6(v6)) => map.contains_key(v6),
-            _ => false,
+            _ => unreachable!(),
         };
         if !exists {
             guard.insert(net, py.None());
@@ -1103,12 +1103,13 @@ impl Pattrie {
     fn discard(&mut self, _py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<()> {
         check_mutable(self.frozen)?;
         let net = parse_network_key(_py, key, self.family, self.af_inet)?;
+        validate_prefix_len(net.prefix_len(), self.maxbits)?;
 
         let mut guard = self.inner.write().unwrap();
         match (&mut *guard, net) {
             (TrieInner::V4(map), IpNet::V4(v4)) => { map.remove(&v4); }
             (TrieInner::V6(map), IpNet::V6(v6)) => { map.remove(&v6); }
-            _ => {}
+            _ => unreachable!(),
         }
         Ok(())
     }
