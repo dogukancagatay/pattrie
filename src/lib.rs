@@ -110,6 +110,65 @@ fn parse_key_from_str(s: &str, family: i32, af_inet: i32) -> PyResult<IpNet> {
     Ok(net)
 }
 
+/// Build an IpNet from raw network-order address bytes (4 → IPv4, 16 → IPv6)
+/// and an optional prefix length (defaults 32 / 128). Validates address family.
+///
+/// `bytes` is big-endian/network order — exactly what Ipv4Addr/Ipv6Addr::from
+/// consume, so no byteswap is applied (unlike the bare-int fast path).
+fn net_from_octets(bytes: &[u8], prefix_len: Option<u8>, family: i32, af_inet: i32) -> PyResult<IpNet> {
+    let net = match bytes.len() {
+        4 => {
+            let octets: [u8; 4] = bytes.try_into().unwrap();
+            IpNet::V4(Ipv4Net::new(std::net::Ipv4Addr::from(octets), prefix_len.unwrap_or(32))
+                .map_err(|e| PyValueError::new_err(e.to_string()))?)
+        }
+        16 => {
+            let octets: [u8; 16] = bytes.try_into().unwrap();
+            IpNet::V6(Ipv6Net::new(std::net::Ipv6Addr::from(octets), prefix_len.unwrap_or(128))
+                .map_err(|e| PyValueError::new_err(e.to_string()))?)
+        }
+        n => return Err(PyValueError::new_err(format!(
+            "Invalid raw address: expected 4 or 16 bytes, got {}", n
+        ))),
+    };
+    let is_v4 = matches!(net, IpNet::V4(_));
+    if (family == af_inet) != is_v4 {
+        return Err(PyValueError::new_err(format!(
+            "Address family mismatch: trie is {}, got {}-byte raw address",
+            if family == af_inet { "IPv4" } else { "IPv6" },
+            bytes.len()
+        )));
+    }
+    Ok(net)
+}
+
+/// Recognize raw-bytes key forms and build the corresponding `IpNet`.
+///
+/// Two forms are accepted: a `(bytes, prefixlen)` 2-tuple, or bare bytes/
+/// bytearray/memoryview (4 bytes → /32, 16 bytes → /128). Returns `None` for
+/// anything else (str, int, ipaddress objects, or a tuple whose prefixlen
+/// isn't an int) so the caller falls through to its other parse paths.
+fn parse_raw_bytes_like(
+    key: &Bound<'_, PyAny>,
+    family: i32,
+    af_inet: i32,
+) -> Option<PyResult<IpNet>> {
+    if let Ok(tup) = key.cast::<PyTuple>() {
+        if tup.len() == 2 {
+            if let Ok(raw) = tup.get_item(0).ok()?.extract::<Vec<u8>>() {
+                if let Ok(plen) = tup.get_item(1).ok()?.extract::<u8>() {
+                    return Some(net_from_octets(&raw, Some(plen), family, af_inet));
+                }
+            }
+        }
+        return None;
+    }
+    // Bare bytes/bytearray/memoryview via the buffer protocol (contiguous only;
+    // non-contiguous buffers Err and fall through).
+    let raw = key.extract::<Vec<u8>>().ok()?;
+    Some(net_from_octets(&raw, None, family, af_inet))
+}
+
 /// Parse a Python key (str or ipaddress object) into an IpNet.
 /// For bare addresses (no /len), uses /32 for IPv4 and /128 for IPv6.
 /// Validates against the trie's address family.
@@ -117,6 +176,8 @@ fn parse_key_from_str(s: &str, family: i32, af_inet: i32) -> PyResult<IpNet> {
 /// Fast paths (in order):
 ///   1. Python str   — zero-copy, no allocation.
 ///   2. ipaddress objects — extract packed bytes + optional prefixlen directly.
+///   2b. raw address bytes — (bytes, prefixlen) tuple or bare bytes/bytearray/
+///       memoryview (4 → /32, 16 → /128); skips string formatting/parsing.
 ///   3. bare int     — IPv4 address as u32 (network/big-endian byte order).
 fn parse_key(py: Python<'_>, key: &Bound<'_, PyAny>, family: i32, af_inet: i32) -> PyResult<IpNet> {
     // Fast path 1: Python str — borrow &str directly, no allocation.
@@ -154,6 +215,12 @@ fn parse_key(py: Python<'_>, key: &Bound<'_, PyAny>, family: i32, af_inet: i32) 
             }
             return Ok(net);
         }
+    }
+
+    // Fast path 2b: raw address bytes — either a (bytes, prefixlen) 2-tuple or
+    // bare bytes/bytearray/memoryview (4 bytes → /32, 16 bytes → /128).
+    if let Some(net) = parse_raw_bytes_like(key, family, af_inet) {
+        return net;
     }
 
     // Fast path 3: bare Python int → IPv4 address as u32 (network byte order).

@@ -6,8 +6,9 @@ from typing import Self, final, overload
 
 __all__ = ["Pattrie"]
 
-type NetworkKey = str | IPv4Network | IPv6Network
-type AddressKey = str | int | IPv4Address | IPv6Address | IPv4Network | IPv6Network
+type RawKey = bytes | bytearray | memoryview | tuple[bytes | bytearray | memoryview, int]
+type NetworkKey = str | IPv4Network | IPv6Network | RawKey
+type AddressKey = str | int | IPv4Address | IPv6Address | IPv4Network | IPv6Network | RawKey
 
 @final
 class Pattrie:
@@ -50,8 +51,9 @@ class Pattrie:
 
         Accepts two calling conventions:
 
-        - `insert(prefix, value)` — `prefix` is a string, `IPv4Network`, or
-          `IPv6Network`. Host bits are zeroed before insertion.
+        - `insert(prefix, value)` — `prefix` is a string, `IPv4Network`,
+          `IPv6Network`, or raw address bytes (`bytes` or a
+          `(bytes, prefixlen)` tuple). Host bits are zeroed before insertion.
         - `insert(addr, prefixlen, value)` — address and prefix length given
           separately.
 
@@ -74,7 +76,9 @@ class Pattrie:
 
         Args:
             items: An iterable of ``(prefix, value)`` pairs. Each prefix
-                may be a CIDR string, ``IPv4Network``, or ``IPv6Network``.
+                may be a CIDR string, ``IPv4Network``, ``IPv6Network``, or
+                raw address bytes (``bytes`` or a ``(bytes, prefixlen)``
+                tuple).
 
         Raises:
             ValueError: If the trie is frozen, a prefix is malformed, or
@@ -108,7 +112,9 @@ class Pattrie:
 
         Args:
             key: An IP address or network prefix (string, `IPv4Address`,
-                `IPv6Address`, `IPv4Network`, or `IPv6Network`).
+                `IPv6Address`, `IPv4Network`, `IPv6Network`, or raw address
+                bytes — `bytes`/`bytearray`/`memoryview` or a
+                `(bytes, prefixlen)` tuple).
 
         Returns:
             The value for the longest matching prefix.
@@ -165,6 +171,12 @@ class Pattrie:
         When the trie is frozen, all trie traversals run without the GIL,
         enabling true parallel use from multiple threads.
 
+        Note:
+            Raw-bytes keys (`bytes`/`(bytes, prefixlen)`) are only supported
+            when the trie is *not* frozen; in frozen mode such keys are treated
+            as misses and return `default`. Use string or `ipaddress` keys for
+            frozen batch lookups.
+
         Args:
             keys: A sequence of IP addresses or network prefixes.
             default: Value to return for each miss. Defaults to `None`.
@@ -196,7 +208,8 @@ class Pattrie:
         longest-prefix semantics.
 
         Args:
-            key: A network prefix (string, `IPv4Network`, or `IPv6Network`).
+            key: A network prefix (string, `IPv4Network`, `IPv6Network`, or
+                raw address bytes — `bytes` or a `(bytes, prefixlen)` tuple).
 
         Returns:
             `True` if the exact prefix exists, `False` otherwise.
@@ -244,7 +257,9 @@ class Pattrie:
 
         Args:
             prefix: The parent prefix to query (CIDR string, ``IPv4Network``,
-                or ``IPv6Network``). Host bits are zeroed before lookup.
+                ``IPv6Network``, or raw address bytes — ``bytes`` or a
+                ``(bytes, prefixlen)`` tuple). Host bits are zeroed before
+                lookup.
 
         Returns:
             A list of CIDR strings for all stored prefixes contained within
@@ -279,8 +294,10 @@ class Pattrie:
         hierarchy. Returns ``None`` if no covering prefix exists.
 
         Args:
-            prefix: The prefix to query (CIDR string, ``IPv4Network``, or
-                ``IPv6Network``). Host bits are zeroed before lookup.
+            prefix: The prefix to query (CIDR string, ``IPv4Network``,
+                ``IPv6Network``, or raw address bytes — ``bytes`` or a
+                ``(bytes, prefixlen)`` tuple). Host bits are zeroed before
+                lookup.
 
         Returns:
             The CIDR string of the longest stored prefix that covers
