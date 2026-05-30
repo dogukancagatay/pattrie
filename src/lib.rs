@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::exceptions::{PyKeyError, PyValueError};
+use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::types::{PyDict, PyList, PySequence, PyString, PyTuple, PyType};
 use prefix_trie::{Prefix, PrefixMap};
@@ -478,6 +478,37 @@ impl Pattrie {
             TrieInner::V6(map) => map.clear(),
         }
         Ok(())
+    }
+
+    #[pyo3(signature = (key, *args))]
+    fn pop(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, args: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
+        // Variadic `*args` so an explicitly-passed default (including `None`) is
+        // distinguishable from "no default given" — matching dict.pop semantics.
+        if args.len() > 1 {
+            return Err(PyTypeError::new_err(format!(
+                "pop expected at most 2 arguments, got {}",
+                args.len() + 1
+            )));
+        }
+        check_mutable(self.frozen)?;
+
+        let net = parse_network_key(py, key, self.family, self.af_inet)?;
+        let mut guard = self.inner.write().unwrap();
+        let removed = match (&mut *guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.remove(&v4),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.remove(&v6),
+            _ => None,
+        };
+        match removed {
+            Some(val) => Ok(val),
+            None => {
+                if args.is_empty() {
+                    Err(PyKeyError::new_err(key.str()?.to_string()))
+                } else {
+                    Ok(args.get_item(0)?.unbind())
+                }
+            }
+        }
     }
 
     #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]

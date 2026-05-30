@@ -231,6 +231,25 @@ class Pattrie:
         """
         ...
 
+    @overload
+    def pop(self, key: NetworkKey) -> object:
+        """Remove and return the value for an exact prefix.
+
+        Args:
+            key: An exact network prefix (host bits are zeroed).
+            default: Value to return if the prefix is not found.
+
+        Returns:
+            The stored value if found, or ``default``.
+
+        Raises:
+            KeyError: If the prefix is not found and no default is given.
+            ValueError: If the trie is frozen or the prefix is invalid.
+        """
+        ...
+    @overload
+    def pop(self, key: NetworkKey, default: object) -> object: ...
+
     def keys(self) -> list[str]:
         """Return a list of all stored prefixes as CIDR strings."""
         ...

@@ -1478,3 +1478,66 @@ def test_clear_frozen_raises():
     t.freeze()
     with pytest.raises(ValueError):
         t.clear()
+
+
+# ---------------------------------------------------------------------------
+# pop()
+# ---------------------------------------------------------------------------
+
+
+def test_pop_exact_hit_returns_value():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    val = t.pop("10.0.0.0/8")
+    assert val == "a"
+    assert len(t) == 0
+
+
+def test_pop_hit_ignores_default():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    val = t.pop("10.0.0.0/8", "fallback")
+    assert val == "a"
+    assert len(t) == 0
+
+
+def test_pop_missing_with_default():
+    t = pattrie.Pattrie()
+    val = t.pop("10.0.0.0/8", "fallback")
+    assert val == "fallback"
+
+
+def test_pop_missing_no_default_raises():
+    t = pattrie.Pattrie()
+    with pytest.raises(KeyError):
+        t.pop("10.0.0.0/8")
+
+
+def test_pop_lpm_address_not_exact():
+    # pop("10.1.2.3") should NOT match the /8 — exact key only
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    with pytest.raises(KeyError):
+        t.pop("10.1.2.3")
+
+
+def test_pop_frozen_raises():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.pop("10.0.0.0/8")
+
+
+def test_pop_explicit_none_default_returned():
+    # Passing None explicitly must suppress KeyError and return None,
+    # matching dict.pop semantics (distinct from "no default given").
+    t = pattrie.Pattrie()
+    assert t.pop("10.0.0.0/8", None) is None
+
+
+def test_pop_too_many_args_raises_type_error():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    with pytest.raises(TypeError):
+        t.pop("10.0.0.0/8", "x", "y")  # ty: ignore[no-matching-overload]
