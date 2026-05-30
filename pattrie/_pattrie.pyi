@@ -250,6 +250,22 @@ class Pattrie:
     @overload
     def pop(self, key: NetworkKey, default: object) -> object: ...
 
+    def setdefault(self, key: NetworkKey, default: object = None) -> object:
+        """Insert ``key`` with ``default`` if absent; return the current value.
+
+        Args:
+            key: A network prefix (host bits are zeroed).
+            default: Value to insert when ``key`` is absent. Defaults to ``None``.
+
+        Returns:
+            The existing value if ``key`` is present, otherwise ``default``.
+
+        Raises:
+            ValueError: If the trie is frozen and ``key`` is not present, or
+                the prefix is invalid.
+        """
+        ...
+
     def keys(self) -> list[str]:
         """Return a list of all stored prefixes as CIDR strings."""
         ...

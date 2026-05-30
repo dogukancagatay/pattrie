@@ -511,6 +511,30 @@ impl Pattrie {
         }
     }
 
+    #[pyo3(signature = (key, default=None))]
+    fn setdefault(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, default: Option<Py<PyAny>>) -> PyResult<Py<PyAny>> {
+        let net = parse_network_key(py, key, self.family, self.af_inet)?;
+        validate_prefix_len(net.prefix_len(), self.maxbits)?;
+
+        // check_mutable is intentionally deferred: a frozen trie can still serve
+        // setdefault when the key already exists (no mutation needed).
+        let mut guard = self.inner.write().unwrap();
+        let existing = match (&*guard, &net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.get(v4).map(|v| v.clone_ref(py)),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.get(v6).map(|v| v.clone_ref(py)),
+            _ => None,
+        };
+
+        if let Some(val) = existing {
+            return Ok(val);
+        }
+
+        check_mutable(self.frozen)?;
+        let default_val = default.unwrap_or_else(|| py.None());
+        guard.insert(net, default_val.clone_ref(py));
+        Ok(default_val)
+    }
+
     #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]
     fn insert(
         &self,

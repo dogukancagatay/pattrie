@@ -1541,3 +1541,46 @@ def test_pop_too_many_args_raises_type_error():
     t["10.0.0.0/8"] = "a"
     with pytest.raises(TypeError):
         t.pop("10.0.0.0/8", "x", "y")  # ty: ignore[no-matching-overload]
+
+
+# ---------------------------------------------------------------------------
+# setdefault()
+# ---------------------------------------------------------------------------
+
+
+def test_setdefault_key_present_returns_existing():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "existing"
+    val = t.setdefault("10.0.0.0/8", "new")
+    assert val == "existing"
+    assert len(t) == 1
+
+
+def test_setdefault_key_absent_inserts_and_returns_default():
+    t = pattrie.Pattrie()
+    val = t.setdefault("10.0.0.0/8", "inserted")
+    assert val == "inserted"
+    assert t.has_key("10.0.0.0/8")
+
+
+def test_setdefault_default_is_none():
+    t = pattrie.Pattrie()
+    val = t.setdefault("10.0.0.0/8")
+    assert val is None
+    assert t.has_key("10.0.0.0/8")
+
+
+def test_setdefault_frozen_raises_on_insert():
+    t = pattrie.Pattrie()
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.setdefault("10.0.0.0/8", "x")
+
+
+def test_setdefault_frozen_ok_when_key_present():
+    # Key already exists — frozen is fine (no mutation needed)
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    val = t.setdefault("10.0.0.0/8", "x")
+    assert val == "a"
