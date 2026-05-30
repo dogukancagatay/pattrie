@@ -1,6 +1,6 @@
 import os
 import socket
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import Self, final, overload
 
@@ -151,6 +151,12 @@ class Pattrie:
         """Iterate over all stored prefixes as CIDR strings."""
         ...
 
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object, /) -> bool: ...
+    def __ne__(self, other: object, /) -> bool: ...
+    def __hash__(self) -> int:
+        """Always raises ``TypeError``: ``Pattrie`` is mutable and unhashable."""
+        ...
     def get(self, key: AddressKey, default: object = None) -> object:
         """Longest-prefix-match lookup, returning `default` on a miss.
 
@@ -220,6 +226,67 @@ class Pattrie:
         Raises:
             KeyError: If the prefix is not in the trie.
             ValueError: If the trie is frozen or the prefix is invalid.
+        """
+        ...
+
+    def clear(self) -> None:
+        """Remove all entries from the trie.
+
+        Raises:
+            ValueError: If the trie is frozen.
+        """
+        ...
+
+    @overload
+    def pop(self, key: NetworkKey) -> object:
+        """Remove and return the value for an exact prefix.
+
+        Args:
+            key: An exact network prefix (host bits are zeroed).
+            default: Value to return if the prefix is not found.
+
+        Returns:
+            The stored value if found, or ``default``.
+
+        Raises:
+            KeyError: If the prefix is not found and no default is given.
+            ValueError: If the trie is frozen or the prefix is invalid.
+        """
+        ...
+    @overload
+    def pop(self, key: NetworkKey, default: object) -> object: ...
+    def setdefault(self, key: NetworkKey, default: object = None) -> object:
+        """Insert ``key`` with ``default`` if absent; return the current value.
+
+        Args:
+            key: A network prefix (host bits are zeroed).
+            default: Value to insert when ``key`` is absent. Defaults to ``None``.
+
+        Returns:
+            The existing value if ``key`` is present, otherwise ``default``.
+
+        Raises:
+            ValueError: If the trie is frozen and ``key`` is not present, or
+                the prefix is invalid.
+        """
+        ...
+
+    def update(
+        self,
+        other: Mapping[NetworkKey, object] | Iterable[tuple[NetworkKey, object]] | Pattrie,
+    ) -> None:
+        """Merge entries from a mapping or iterable of pairs.
+
+        Accepts a ``dict``, another ``Pattrie``, or any iterable of
+        ``(prefix, value)`` pairs. Existing keys are overwritten.
+
+        Args:
+            other: A mapping with an ``.items()`` method or an iterable of
+                ``(prefix, value)`` pairs.
+
+        Raises:
+            ValueError: If the trie is frozen, a prefix is malformed, or a
+                prefix length exceeds ``maxbits``.
         """
         ...
 

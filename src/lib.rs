@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use pyo3::exceptions::{PyKeyError, PyValueError};
+use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::types::{PyDict, PyList, PySequence, PyString, PyTuple, PyType};
 use prefix_trie::{Prefix, PrefixMap};
@@ -70,6 +70,28 @@ where
             v.clone_ref(py),
         ]).map(|t| t.into_any().unbind())
     }).collect()
+}
+
+/// Structural equality of two same-family maps: same keys, with Python-equal values.
+fn maps_equal<P: Prefix>(
+    py: Python<'_>,
+    m1: &PrefixMap<P, Py<PyAny>>,
+    m2: &PrefixMap<P, Py<PyAny>>,
+) -> PyResult<bool> {
+    if m1.len() != m2.len() {
+        return Ok(false);
+    }
+    for (k, v) in m1.iter() {
+        match m2.get(k) {
+            None => return Ok(false),
+            Some(v2) => {
+                if !v.bind(py).eq(v2.bind(py))? {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(true)
 }
 
 enum TrieInner {
@@ -468,6 +490,161 @@ impl Pattrie {
         } else {
             Err(PyKeyError::new_err(format!("Prefix not found: {}", key.str()?)))
         }
+    }
+
+    fn clear(&mut self) -> PyResult<()> {
+        check_mutable(self.frozen)?;
+        let mut guard = self.inner.write().unwrap();
+        match &mut *guard {
+            TrieInner::V4(map) => map.clear(),
+            TrieInner::V6(map) => map.clear(),
+        }
+        Ok(())
+    }
+
+    #[pyo3(signature = (key, *args))]
+    fn pop(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, args: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
+        // Variadic `*args` so an explicitly-passed default (including `None`) is
+        // distinguishable from "no default given" — matching dict.pop semantics.
+        if args.len() > 1 {
+            return Err(PyTypeError::new_err(format!(
+                "pop expected at most 2 arguments, got {}",
+                args.len() + 1
+            )));
+        }
+        check_mutable(self.frozen)?;
+
+        let net = parse_network_key(py, key, self.family, self.af_inet)?;
+        let mut guard = self.inner.write().unwrap();
+        let removed = match (&mut *guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.remove(&v4),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.remove(&v6),
+            _ => None,
+        };
+        match removed {
+            Some(val) => Ok(val),
+            None => {
+                if args.is_empty() {
+                    Err(PyKeyError::new_err(key.str()?.to_string()))
+                } else {
+                    Ok(args.get_item(0)?.unbind())
+                }
+            }
+        }
+    }
+
+    #[pyo3(signature = (key, default=None))]
+    fn setdefault(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, default: Option<Py<PyAny>>) -> PyResult<Py<PyAny>> {
+        let net = parse_network_key(py, key, self.family, self.af_inet)?;
+        validate_prefix_len(net.prefix_len(), self.maxbits)?;
+
+        // check_mutable is intentionally deferred: a frozen trie can still serve
+        // setdefault when the key already exists (no mutation needed).
+        let mut guard = self.inner.write().unwrap();
+        let existing = match (&*guard, &net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.get(v4).map(|v| v.clone_ref(py)),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.get(v6).map(|v| v.clone_ref(py)),
+            _ => None,
+        };
+
+        if let Some(val) = existing {
+            return Ok(val);
+        }
+
+        check_mutable(self.frozen)?;
+        let default_val = default.unwrap_or_else(|| py.None());
+        guard.insert(net, default_val.clone_ref(py));
+        Ok(default_val)
+    }
+
+    fn update(&mut self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<()> {
+        check_mutable(self.frozen)?;
+
+        let mut entries: Vec<(IpNet, Py<PyAny>)> = Vec::new();
+
+        let iter_obj: Bound<'_, PyAny> = if let Ok(items_method) = other.getattr(intern!(py, "items")) {
+            items_method.call0()?
+        } else {
+            other.clone()
+        };
+
+        for pair_result in iter_obj.try_iter()? {
+            let pair = pair_result?;
+            let seq = pair.cast::<pyo3::types::PySequence>().map_err(|_| {
+                PyTypeError::new_err("update() requires (prefix, value) pairs")
+            })?;
+            if seq.len()? != 2 {
+                return Err(PyTypeError::new_err(
+                    "update() requires (prefix, value) pairs",
+                ));
+            }
+            let key = seq.get_item(0)?;
+            let value: Py<PyAny> = seq.get_item(1)?.unbind();
+            let net = parse_network_key(py, &key, self.family, self.af_inet)?;
+            validate_prefix_len(net.prefix_len(), self.maxbits)?;
+            entries.push((net, value));
+        }
+
+        let mut guard = self.inner.write().unwrap();
+        for (net, val) in entries {
+            guard.insert(net, val);
+        }
+        Ok(())
+    }
+
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        let family_name = if self.family == self.af_inet { "AF_INET" } else { "AF_INET6" };
+
+        let guard = self.inner.read().unwrap();
+        let total = match &*guard {
+            TrieInner::V4(map) => map.len(),
+            TrieInner::V6(map) => map.len(),
+        };
+
+        const LIMIT: usize = 5;
+        let mut pairs: Vec<String> = Vec::with_capacity(LIMIT);
+        let iter: Box<dyn Iterator<Item = (String, &Py<PyAny>)>> = match &*guard {
+            TrieInner::V4(map) => Box::new(map.iter().map(|(p, v)| (p.to_string(), v))),
+            TrieInner::V6(map) => Box::new(map.iter().map(|(p, v)| (p.to_string(), v))),
+        };
+        for (p, v) in iter.take(LIMIT) {
+            let val_repr = v.bind(py).repr()?.to_string();
+            pairs.push(format!("'{}': {}", p, val_repr));
+        }
+        let entries_str = if total > LIMIT {
+            format!("{{{}, ...}}", pairs.join(", "))
+        } else if pairs.is_empty() {
+            "{}".to_string()
+        } else {
+            format!("{{{}}}", pairs.join(", "))
+        };
+        Ok(format!(
+            "Pattrie({}, maxbits={}, family={})",
+            entries_str, self.maxbits, family_name
+        ))
+    }
+
+    fn __eq__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        let Ok(other_pattrie) = other.extract::<pyo3::PyRef<Pattrie>>() else {
+            return Ok(py.NotImplemented());
+        };
+
+        let guard_self = self.inner.read().unwrap();
+        let guard_other = other_pattrie.inner.read().unwrap();
+
+        let eq = match (&*guard_self, &*guard_other) {
+            (TrieInner::V4(m1), TrieInner::V4(m2)) => maps_equal(py, m1, m2)?,
+            (TrieInner::V6(m1), TrieInner::V6(m2)) => maps_equal(py, m1, m2)?,
+            _ => false, // different address families -> not equal
+        };
+
+        Ok(pyo3::types::PyBool::new(py, eq).to_owned().into_any().unbind())
+    }
+
+    fn __hash__(&self) -> PyResult<isize> {
+        // Mutable container, like dict/list — unhashable so that the
+        // hash/eq invariant (equal objects hash equal) is never violated.
+        Err(PyTypeError::new_err("unhashable type: 'Pattrie'"))
     }
 
     #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]

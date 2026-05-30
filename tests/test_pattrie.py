@@ -1457,3 +1457,299 @@ def test_get_all_frozen_trie():
     t["10.1.0.0/16"] = "b"
     t.freeze()
     assert t.get_all("10.1.2.3") == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+# ---------------------------------------------------------------------------
+# clear()
+# ---------------------------------------------------------------------------
+
+
+def test_clear_empties_trie():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["192.168.0.0/16"] = "b"
+    t.clear()
+    assert len(t) == 0
+
+
+def test_clear_frozen_raises():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.clear()
+
+
+# ---------------------------------------------------------------------------
+# pop()
+# ---------------------------------------------------------------------------
+
+
+def test_pop_exact_hit_returns_value():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    val = t.pop("10.0.0.0/8")
+    assert val == "a"
+    assert len(t) == 0
+
+
+def test_pop_hit_ignores_default():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    val = t.pop("10.0.0.0/8", "fallback")
+    assert val == "a"
+    assert len(t) == 0
+
+
+def test_pop_missing_with_default():
+    t = pattrie.Pattrie()
+    val = t.pop("10.0.0.0/8", "fallback")
+    assert val == "fallback"
+
+
+def test_pop_missing_no_default_raises():
+    t = pattrie.Pattrie()
+    with pytest.raises(KeyError):
+        t.pop("10.0.0.0/8")
+
+
+def test_pop_lpm_address_not_exact():
+    # pop("10.1.2.3") should NOT match the /8 — exact key only
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    with pytest.raises(KeyError):
+        t.pop("10.1.2.3")
+
+
+def test_pop_frozen_raises():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.pop("10.0.0.0/8")
+
+
+def test_pop_explicit_none_default_returned():
+    # Passing None explicitly must suppress KeyError and return None,
+    # matching dict.pop semantics (distinct from "no default given").
+    t = pattrie.Pattrie()
+    assert t.pop("10.0.0.0/8", None) is None
+
+
+def test_pop_too_many_args_raises_type_error():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    with pytest.raises(TypeError):
+        t.pop("10.0.0.0/8", "x", "y")  # ty: ignore[no-matching-overload]
+
+
+# ---------------------------------------------------------------------------
+# setdefault()
+# ---------------------------------------------------------------------------
+
+
+def test_setdefault_key_present_returns_existing():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "existing"
+    val = t.setdefault("10.0.0.0/8", "new")
+    assert val == "existing"
+    assert len(t) == 1
+
+
+def test_setdefault_key_absent_inserts_and_returns_default():
+    t = pattrie.Pattrie()
+    val = t.setdefault("10.0.0.0/8", "inserted")
+    assert val == "inserted"
+    assert t.has_key("10.0.0.0/8")
+
+
+def test_setdefault_default_is_none():
+    t = pattrie.Pattrie()
+    val = t.setdefault("10.0.0.0/8")
+    assert val is None
+    assert t.has_key("10.0.0.0/8")
+
+
+def test_setdefault_frozen_raises_on_insert():
+    t = pattrie.Pattrie()
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.setdefault("10.0.0.0/8", "x")
+
+
+def test_setdefault_frozen_ok_when_key_present():
+    # Key already exists — frozen is fine (no mutation needed)
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    val = t.setdefault("10.0.0.0/8", "x")
+    assert val == "a"
+
+
+def test_update_from_dict():
+    t = pattrie.Pattrie()
+    t.update({"10.0.0.0/8": "a", "192.168.0.0/16": "b"})
+    assert t.has_key("10.0.0.0/8")
+    assert t.has_key("192.168.0.0/16")
+    assert len(t) == 2
+
+
+def test_update_from_iterable_of_pairs():
+    t = pattrie.Pattrie()
+    t.update([("10.0.0.0/8", "a"), ("192.168.0.0/16", "b")])
+    assert t.has_key("10.0.0.0/8")
+    assert t.has_key("192.168.0.0/16")
+
+
+def test_update_from_pattrie():
+    src = pattrie.Pattrie()
+    src["10.0.0.0/8"] = "a"
+    dst = pattrie.Pattrie()
+    dst.update(src)
+    assert dst.has_key("10.0.0.0/8")
+
+
+def test_update_overwrites_existing():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "old"
+    t.update({"10.0.0.0/8": "new"})
+    assert t["10.0.0.0/8"] == "new"
+    assert len(t) == 1
+
+
+def test_update_frozen_raises():
+    t = pattrie.Pattrie()
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.update({"10.0.0.0/8": "a"})
+
+
+def test_update_ipv6_from_dict():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t.update({"2001:db8::/32": "a", "2001:db8:4000::/48": "b"})
+    assert t.has_key("2001:db8::/32")
+    assert t.has_key("2001:db8:4000::/48")
+
+
+def test_update_malformed_pair_raises_type_error():
+    t = pattrie.Pattrie()
+    with pytest.raises(TypeError):
+        t.update([("10.0.0.0/8", "a", "extra")])  # ty: ignore[invalid-argument-type]
+
+
+def test_update_is_atomic_on_bad_prefix():
+    # A malformed prefix mid-iterable must leave the trie untouched.
+    t = pattrie.Pattrie()
+    with pytest.raises(ValueError):
+        t.update([("10.0.0.0/8", "a"), ("not-an-ip", "b")])
+    assert len(t) == 0
+
+
+def test_repr_empty():
+    t = pattrie.Pattrie()
+    r = repr(t)
+    assert "Pattrie" in r
+
+
+def test_repr_contains_key_and_value():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "rfc1918"
+    r = repr(t)
+    assert "10.0.0.0/8" in r
+    assert "rfc1918" in r
+
+
+def test_repr_truncates_beyond_5():
+    t = pattrie.Pattrie()
+    for i in range(10):
+        t[f"10.{i}.0.0/16"] = i
+    r = repr(t)
+    assert "..." in r
+
+
+def test_repr_ipv6_contains_key_and_family():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "company"
+    r = repr(t)
+    assert "2001:db8::/32" in r
+    assert "company" in r
+    assert "AF_INET6" in r
+
+
+def test_eq_empty_tries():
+    assert pattrie.Pattrie() == pattrie.Pattrie()
+
+
+def test_eq_same_entries():
+    t1 = pattrie.Pattrie()
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie()
+    t2["10.0.0.0/8"] = "a"
+    assert t1 == t2
+
+
+def test_neq_different_values():
+    t1 = pattrie.Pattrie()
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie()
+    t2["10.0.0.0/8"] = "b"
+    assert t1 != t2
+
+
+def test_neq_different_keys():
+    t1 = pattrie.Pattrie()
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie()
+    t2["192.168.0.0/16"] = "a"
+    assert t1 != t2
+
+
+def test_eq_non_pattrie_returns_not_implemented():
+    t = pattrie.Pattrie()
+    assert (t == {}) is False  # NotImplemented falls back to identity
+    assert (t == 42) is False
+
+
+def test_eq_ignores_maxbits():
+    # Same entries, different maxbits -> still equal
+    t1 = pattrie.Pattrie(24)
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie(32)
+    t2["10.0.0.0/8"] = "a"
+    assert t1 == t2
+
+
+def test_pattrie_is_unhashable():
+    t = pattrie.Pattrie()
+    with pytest.raises(TypeError):
+        hash(t)
+
+
+def test_equal_tries_both_unhashable():
+    # Equal objects must not end up with mismatched identity-hashes;
+    # making Pattrie unhashable preserves the hash/eq invariant.
+    t1 = pattrie.Pattrie()
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie()
+    t2["10.0.0.0/8"] = "a"
+    assert t1 == t2
+    with pytest.raises(TypeError):
+        hash(t1)
+    with pytest.raises(TypeError):
+        hash(t2)
+
+
+def test_eq_different_families_not_equal():
+    v4 = pattrie.Pattrie()
+    v4["10.0.0.0/8"] = "a"
+    v6 = pattrie.Pattrie(128, socket.AF_INET6)
+    v6["2001:db8::/32"] = "a"
+    assert v4 != v6
+
+
+def test_eq_ipv6_same_entries():
+    t1 = pattrie.Pattrie(128, socket.AF_INET6)
+    t1["2001:db8::/32"] = "a"
+    t2 = pattrie.Pattrie(128, socket.AF_INET6)
+    t2["2001:db8::/32"] = "a"
+    assert t1 == t2
