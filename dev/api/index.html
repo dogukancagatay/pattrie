@@ -412,6 +412,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.insert_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_many
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pattrie.Pattrie.__setitem__" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -681,6 +692,17 @@
   
     <nav class="md-nav" aria-label="Pattrie">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.insert_many" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        insert_many
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#pattrie.Pattrie.__setitem__" class="md-nav__link">
@@ -1053,6 +1075,95 @@ t[&quot;10.2.0.1&quot;]  # → &quot;rfc1918&quot;
 
 
 
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.insert_many" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">insert_many</span><span class="p">(</span><span class="n">items</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">NetworkKey</span><span class="p">,</span> <span class="nb">object</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="kc">None</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Insert multiple prefixes in one call.</p>
+<p>Accepts any iterable of <code>(prefix, value)</code> pairs. All keys are
+parsed and validated before any insertion begins — if a malformed
+prefix is encountered, <code>ValueError</code> is raised and the trie is
+unchanged. Trie mutations run without the GIL for improved
+throughput on large loads.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>items</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="tuple">tuple</span>[<span title="pattrie._pattrie.NetworkKey">NetworkKey</span>, <span title="object">object</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An iterable of <code>(prefix, value)</code> pairs. Each prefix
+may be a CIDR string, <code>IPv4Network</code>, or <code>IPv6Network</code>.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the trie is frozen, a prefix is malformed, or
+a prefix length exceeds <code>maxbits</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <pre><code class="language-python">t = Pattrie()
+t.insert_many([
+    (&quot;10.0.0.0/8&quot;, &quot;rfc1918&quot;),
+    (&quot;192.168.0.0/16&quot;, &quot;home&quot;),
+])
+</code></pre>
+</details>
+
+    </div>
+
+</div>
 
 <div class="doc doc-object doc-function">
 
