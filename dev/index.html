@@ -582,7 +582,7 @@ t[&quot;10.2.0.1&quot;]          # &quot;rfc1918&quot;
 t.get_key(&quot;10.1.2.3&quot;)  # &quot;10.1.0.0/16&quot;
 t.get(&quot;192.0.2.1&quot;)     # None
 </code></pre>
-<p>Keys can be strings, <code>ipaddress.IPv4Address</code>, <code>IPv4Network</code>, <code>IPv6Address</code>, or <code>IPv6Network</code>.</p>
+<p>Keys can be strings, <code>ipaddress.IPv4Address</code>, <code>IPv4Network</code>, <code>IPv6Address</code>, or <code>IPv6Network</code>. For packet processing, keys may also be raw address bytes — a <code>bytes</code>/<code>bytearray</code>/<code>memoryview</code> of length 4 (IPv4) or 16 (IPv6), or a <code>(bytes, prefixlen)</code> tuple — e.g. <code>t[socket.inet_pton(socket.AF_INET, "10.1.2.3")]</code> or <code>t.get((raw, 8))</code>. This avoids the string formatting and re-parsing round-trip when the address is already available as bytes.</p>
 <h2 id="ipv6">IPv6</h2>
 <pre><code class="language-python">import socket
 import pattrie

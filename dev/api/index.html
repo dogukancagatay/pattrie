@@ -1116,7 +1116,9 @@ throughput on large loads.</p>
             <td>
               <div class="doc-md-description">
                 <p>An iterable of <code>(prefix, value)</code> pairs. Each prefix
-may be a CIDR string, <code>IPv4Network</code>, or <code>IPv6Network</code>.</p>
+may be a CIDR string, <code>IPv4Network</code>, <code>IPv6Network</code>, or
+raw address bytes (<code>bytes</code> or a <code>(bytes, prefixlen)</code>
+tuple).</p>
               </div>
             </td>
             <td>
@@ -1244,7 +1246,9 @@ insertion (<code>"10.1.2.3/8"</code> is stored as <code>"10.0.0.0/8"</code>).</p
             <td>
               <div class="doc-md-description">
                 <p>An IP address or network prefix (string, <code>IPv4Address</code>,
-<code>IPv6Address</code>, <code>IPv4Network</code>, or <code>IPv6Network</code>).</p>
+<code>IPv6Address</code>, <code>IPv4Network</code>, <code>IPv6Network</code>, or raw address
+bytes — <code>bytes</code>/<code>bytearray</code>/<code>memoryview</code> or a
+<code>(bytes, prefixlen)</code> tuple).</p>
               </div>
             </td>
             <td>
@@ -1519,6 +1523,14 @@ When the trie is frozen, all trie traversals run without the GIL,
 enabling true parallel use from multiple threads.</p>
 
 
+<details class="note" open>
+  <summary>Note</summary>
+  <p>Raw-bytes keys (<code>bytes</code>/<code>(bytes, prefixlen)</code>) are only supported
+when the trie is <em>not</em> frozen; in frozen mode such keys are treated
+as misses and return <code>default</code>. Use string or <code>ipaddress</code> keys for
+frozen batch lookups.</p>
+</details>
+
 <p><span class="doc-section-title">Parameters:</span></p>
     <table>
       <thead>
@@ -1713,7 +1725,8 @@ longest-prefix semantics.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A network prefix (string, <code>IPv4Network</code>, or <code>IPv6Network</code>).</p>
+                <p>A network prefix (string, <code>IPv4Network</code>, <code>IPv6Network</code>, or
+raw address bytes — <code>bytes</code> or a <code>(bytes, prefixlen)</code> tuple).</p>
               </div>
             </td>
             <td>
@@ -1900,7 +1913,9 @@ Returns <code>[]</code> when no descendants exist or the trie is empty.</p>
             <td>
               <div class="doc-md-description">
                 <p>The parent prefix to query (CIDR string, <code>IPv4Network</code>,
-or <code>IPv6Network</code>). Host bits are zeroed before lookup.</p>
+<code>IPv6Network</code>, or raw address bytes — <code>bytes</code> or a
+<code>(bytes, prefixlen)</code> tuple). Host bits are zeroed before
+lookup.</p>
               </div>
             </td>
             <td>
@@ -2025,8 +2040,10 @@ hierarchy. Returns <code>None</code> if no covering prefix exists.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The prefix to query (CIDR string, <code>IPv4Network</code>, or
-<code>IPv6Network</code>). Host bits are zeroed before lookup.</p>
+                <p>The prefix to query (CIDR string, <code>IPv4Network</code>,
+<code>IPv6Network</code>, or raw address bytes — <code>bytes</code> or a
+<code>(bytes, prefixlen)</code> tuple). Host bits are zeroed before
+lookup.</p>
               </div>
             </td>
             <td>
