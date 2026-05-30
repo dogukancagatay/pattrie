@@ -462,6 +462,40 @@ class Pattrie:
         """
         ...
 
+    def add(self, key: NetworkKey) -> None:
+        """Insert a prefix without a value (set-style).
+
+        Stores ``None`` as the sentinel value for the prefix. If the prefix
+        is already present with an existing value, that value is left intact
+        — ``add`` never destroys data.
+
+        Args:
+            key: A network prefix (CIDR string, ``IPv4Network``,
+                ``IPv6Network``, or raw address bytes). Host bits are zeroed
+                before insertion.
+
+        Raises:
+            ValueError: If the trie is frozen, the prefix is malformed, or
+                the prefix length exceeds ``maxbits``.
+        """
+        ...
+
+    def discard(self, key: NetworkKey) -> None:
+        """Remove a prefix if present; no-op if absent.
+
+        Unlike ``delete``/``__delitem__``, does not raise ``KeyError`` when
+        the prefix is not found.
+
+        Args:
+            key: A network prefix (CIDR string, ``IPv4Network``,
+                ``IPv6Network``, or raw address bytes). Host bits are zeroed
+                before lookup.
+
+        Raises:
+            ValueError: If the trie is frozen or the prefix is malformed.
+        """
+        ...
+
     def freeze(self) -> None:
         """Make the trie read-only and enable GIL-free concurrent reads.
 
