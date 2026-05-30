@@ -1457,3 +1457,24 @@ def test_get_all_frozen_trie():
     t["10.1.0.0/16"] = "b"
     t.freeze()
     assert t.get_all("10.1.2.3") == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+# ---------------------------------------------------------------------------
+# clear()
+# ---------------------------------------------------------------------------
+
+
+def test_clear_empties_trie():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["192.168.0.0/16"] = "b"
+    t.clear()
+    assert len(t) == 0
+
+
+def test_clear_frozen_raises():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.clear()

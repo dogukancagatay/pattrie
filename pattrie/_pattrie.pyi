@@ -223,6 +223,14 @@ class Pattrie:
         """
         ...
 
+    def clear(self) -> None:
+        """Remove all entries from the trie.
+
+        Raises:
+            ValueError: If the trie is frozen.
+        """
+        ...
+
     def keys(self) -> list[str]:
         """Return a list of all stored prefixes as CIDR strings."""
         ...

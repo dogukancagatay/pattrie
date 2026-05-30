@@ -470,6 +470,16 @@ impl Pattrie {
         }
     }
 
+    fn clear(&mut self) -> PyResult<()> {
+        check_mutable(self.frozen)?;
+        let mut guard = self.inner.write().unwrap();
+        match &mut *guard {
+            TrieInner::V4(map) => map.clear(),
+            TrieInner::V6(map) => map.clear(),
+        }
+        Ok(())
+    }
+
     #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]
     fn insert(
         &self,
