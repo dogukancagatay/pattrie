@@ -535,6 +535,41 @@ impl Pattrie {
         Ok(default_val)
     }
 
+    fn update(&mut self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<()> {
+        check_mutable(self.frozen)?;
+
+        let mut entries: Vec<(IpNet, Py<PyAny>)> = Vec::new();
+
+        let iter_obj: Bound<'_, PyAny> = if let Ok(items_method) = other.getattr(intern!(py, "items")) {
+            items_method.call0()?
+        } else {
+            other.clone()
+        };
+
+        for pair_result in iter_obj.try_iter()? {
+            let pair = pair_result?;
+            let seq = pair.cast::<pyo3::types::PySequence>().map_err(|_| {
+                PyTypeError::new_err("update() requires (prefix, value) pairs")
+            })?;
+            if seq.len()? != 2 {
+                return Err(PyTypeError::new_err(
+                    "update() requires (prefix, value) pairs",
+                ));
+            }
+            let key = seq.get_item(0)?;
+            let value: Py<PyAny> = seq.get_item(1)?.unbind();
+            let net = parse_network_key(py, &key, self.family, self.af_inet)?;
+            validate_prefix_len(net.prefix_len(), self.maxbits)?;
+            entries.push((net, value));
+        }
+
+        let mut guard = self.inner.write().unwrap();
+        for (net, val) in entries {
+            guard.insert(net, val);
+        }
+        Ok(())
+    }
+
     #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]
     fn insert(
         &self,

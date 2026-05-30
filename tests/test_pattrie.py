@@ -1584,3 +1584,62 @@ def test_setdefault_frozen_ok_when_key_present():
     t.freeze()
     val = t.setdefault("10.0.0.0/8", "x")
     assert val == "a"
+
+
+def test_update_from_dict():
+    t = pattrie.Pattrie()
+    t.update({"10.0.0.0/8": "a", "192.168.0.0/16": "b"})
+    assert t.has_key("10.0.0.0/8")
+    assert t.has_key("192.168.0.0/16")
+    assert len(t) == 2
+
+
+def test_update_from_iterable_of_pairs():
+    t = pattrie.Pattrie()
+    t.update([("10.0.0.0/8", "a"), ("192.168.0.0/16", "b")])
+    assert t.has_key("10.0.0.0/8")
+    assert t.has_key("192.168.0.0/16")
+
+
+def test_update_from_pattrie():
+    src = pattrie.Pattrie()
+    src["10.0.0.0/8"] = "a"
+    dst = pattrie.Pattrie()
+    dst.update(src)
+    assert dst.has_key("10.0.0.0/8")
+
+
+def test_update_overwrites_existing():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "old"
+    t.update({"10.0.0.0/8": "new"})
+    assert t["10.0.0.0/8"] == "new"
+    assert len(t) == 1
+
+
+def test_update_frozen_raises():
+    t = pattrie.Pattrie()
+    t.freeze()
+    with pytest.raises(ValueError):
+        t.update({"10.0.0.0/8": "a"})
+
+
+def test_update_ipv6_from_dict():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t.update({"2001:db8::/32": "a", "2001:db8:4000::/48": "b"})
+    assert t.has_key("2001:db8::/32")
+    assert t.has_key("2001:db8:4000::/48")
+
+
+def test_update_malformed_pair_raises_type_error():
+    t = pattrie.Pattrie()
+    with pytest.raises(TypeError):
+        t.update([("10.0.0.0/8", "a", "extra")])  # ty: ignore[invalid-argument-type]
+
+
+def test_update_is_atomic_on_bad_prefix():
+    # A malformed prefix mid-iterable must leave the trie untouched.
+    t = pattrie.Pattrie()
+    with pytest.raises(ValueError):
+        t.update([("10.0.0.0/8", "a"), ("not-an-ip", "b")])
+    assert len(t) == 0

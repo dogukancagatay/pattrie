@@ -1,6 +1,6 @@
 import os
 import socket
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network
 from typing import Self, final, overload
 
@@ -151,6 +151,7 @@ class Pattrie:
         """Iterate over all stored prefixes as CIDR strings."""
         ...
 
+
     def get(self, key: AddressKey, default: object = None) -> object:
         """Longest-prefix-match lookup, returning `default` on a miss.
 
@@ -249,7 +250,6 @@ class Pattrie:
         ...
     @overload
     def pop(self, key: NetworkKey, default: object) -> object: ...
-
     def setdefault(self, key: NetworkKey, default: object = None) -> object:
         """Insert ``key`` with ``default`` if absent; return the current value.
 
@@ -263,6 +263,25 @@ class Pattrie:
         Raises:
             ValueError: If the trie is frozen and ``key`` is not present, or
                 the prefix is invalid.
+        """
+        ...
+
+    def update(
+        self,
+        other: Mapping[NetworkKey, object] | Iterable[tuple[NetworkKey, object]] | Pattrie,
+    ) -> None:
+        """Merge entries from a mapping or iterable of pairs.
+
+        Accepts a ``dict``, another ``Pattrie``, or any iterable of
+        ``(prefix, value)`` pairs. Existing keys are overwritten.
+
+        Args:
+            other: A mapping with an ``.items()`` method or an iterable of
+                ``(prefix, value)`` pairs.
+
+        Raises:
+            ValueError: If the trie is frozen, a prefix is malformed, or a
+                prefix length exceeds ``maxbits``.
         """
         ...
 
