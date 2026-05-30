@@ -1520,16 +1520,10 @@ instead.</p>
         <p>Look up multiple keys in one call, returning a list of values.</p>
 <p>Each key is resolved by longest-prefix match; misses return <code>default</code>.
 When the trie is frozen, all trie traversals run without the GIL,
-enabling true parallel use from multiple threads.</p>
+enabling true parallel use from multiple threads. All key forms
+(strings, <code>ipaddress</code> objects, raw bytes, and <code>(bytes, prefixlen)</code>
+tuples) are supported in both frozen and non-frozen modes.</p>
 
-
-<details class="note" open>
-  <summary>Note</summary>
-  <p>Raw-bytes keys (<code>bytes</code>/<code>(bytes, prefixlen)</code>) are only supported
-when the trie is <em>not</em> frozen; in frozen mode such keys are treated
-as misses and return <code>default</code>. Use string or <code>ipaddress</code> keys for
-frozen batch lookups.</p>
-</details>
 
 <p><span class="doc-section-title">Parameters:</span></p>
     <table>
