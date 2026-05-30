@@ -1759,6 +1759,7 @@ def test_eq_ipv6_same_entries():
 # bare=True tests (issue #45)
 # ---------------------------------------------------------------------------
 
+
 def test_keys_default_cidr():
     t = pattrie.Pattrie()
     t["10.1.0.0/24"] = "a"
