@@ -72,6 +72,28 @@ where
     }).collect()
 }
 
+/// Structural equality of two same-family maps: same keys, with Python-equal values.
+fn maps_equal<P: Prefix>(
+    py: Python<'_>,
+    m1: &PrefixMap<P, Py<PyAny>>,
+    m2: &PrefixMap<P, Py<PyAny>>,
+) -> PyResult<bool> {
+    if m1.len() != m2.len() {
+        return Ok(false);
+    }
+    for (k, v) in m1.iter() {
+        match m2.get(k) {
+            None => return Ok(false),
+            Some(v2) => {
+                if !v.bind(py).eq(v2.bind(py))? {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
 enum TrieInner {
     V4(PrefixMap<Ipv4Net, Py<PyAny>>),
     V6(PrefixMap<Ipv6Net, Py<PyAny>>),
@@ -600,6 +622,29 @@ impl Pattrie {
             "Pattrie({}, maxbits={}, family={})",
             entries_str, self.maxbits, family_name
         ))
+    }
+
+    fn __eq__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        let Ok(other_pattrie) = other.extract::<pyo3::PyRef<Pattrie>>() else {
+            return Ok(py.NotImplemented());
+        };
+
+        let guard_self = self.inner.read().unwrap();
+        let guard_other = other_pattrie.inner.read().unwrap();
+
+        let eq = match (&*guard_self, &*guard_other) {
+            (TrieInner::V4(m1), TrieInner::V4(m2)) => maps_equal(py, m1, m2)?,
+            (TrieInner::V6(m1), TrieInner::V6(m2)) => maps_equal(py, m1, m2)?,
+            _ => false, // different address families -> not equal
+        };
+
+        Ok(pyo3::types::PyBool::new(py, eq).to_owned().into_any().unbind())
+    }
+
+    fn __hash__(&self) -> PyResult<isize> {
+        // Mutable container, like dict/list — unhashable so that the
+        // hash/eq invariant (equal objects hash equal) is never violated.
+        Err(PyTypeError::new_err("unhashable type: 'Pattrie'"))
     }
 
     #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]

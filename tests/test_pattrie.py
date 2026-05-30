@@ -1674,3 +1674,82 @@ def test_repr_ipv6_contains_key_and_family():
     assert "2001:db8::/32" in r
     assert "company" in r
     assert "AF_INET6" in r
+
+
+def test_eq_empty_tries():
+    assert pattrie.Pattrie() == pattrie.Pattrie()
+
+
+def test_eq_same_entries():
+    t1 = pattrie.Pattrie()
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie()
+    t2["10.0.0.0/8"] = "a"
+    assert t1 == t2
+
+
+def test_neq_different_values():
+    t1 = pattrie.Pattrie()
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie()
+    t2["10.0.0.0/8"] = "b"
+    assert t1 != t2
+
+
+def test_neq_different_keys():
+    t1 = pattrie.Pattrie()
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie()
+    t2["192.168.0.0/16"] = "a"
+    assert t1 != t2
+
+
+def test_eq_non_pattrie_returns_not_implemented():
+    t = pattrie.Pattrie()
+    assert (t == {}) is False  # NotImplemented falls back to identity
+    assert (t == 42) is False
+
+
+def test_eq_ignores_maxbits():
+    # Same entries, different maxbits -> still equal
+    t1 = pattrie.Pattrie(24)
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie(32)
+    t2["10.0.0.0/8"] = "a"
+    assert t1 == t2
+
+
+def test_pattrie_is_unhashable():
+    t = pattrie.Pattrie()
+    with pytest.raises(TypeError):
+        hash(t)
+
+
+def test_equal_tries_both_unhashable():
+    # Equal objects must not end up with mismatched identity-hashes;
+    # making Pattrie unhashable preserves the hash/eq invariant.
+    t1 = pattrie.Pattrie()
+    t1["10.0.0.0/8"] = "a"
+    t2 = pattrie.Pattrie()
+    t2["10.0.0.0/8"] = "a"
+    assert t1 == t2
+    with pytest.raises(TypeError):
+        hash(t1)
+    with pytest.raises(TypeError):
+        hash(t2)
+
+
+def test_eq_different_families_not_equal():
+    v4 = pattrie.Pattrie()
+    v4["10.0.0.0/8"] = "a"
+    v6 = pattrie.Pattrie(128, socket.AF_INET6)
+    v6["2001:db8::/32"] = "a"
+    assert v4 != v6
+
+
+def test_eq_ipv6_same_entries():
+    t1 = pattrie.Pattrie(128, socket.AF_INET6)
+    t1["2001:db8::/32"] = "a"
+    t2 = pattrie.Pattrie(128, socket.AF_INET6)
+    t2["2001:db8::/32"] = "a"
+    assert t1 == t2
