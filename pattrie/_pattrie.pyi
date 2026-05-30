@@ -169,13 +169,9 @@ class Pattrie:
 
         Each key is resolved by longest-prefix match; misses return `default`.
         When the trie is frozen, all trie traversals run without the GIL,
-        enabling true parallel use from multiple threads.
-
-        Note:
-            Raw-bytes keys (`bytes`/`(bytes, prefixlen)`) are only supported
-            when the trie is *not* frozen; in frozen mode such keys are treated
-            as misses and return `default`. Use string or `ipaddress` keys for
-            frozen batch lookups.
+        enabling true parallel use from multiple threads. All key forms
+        (strings, `ipaddress` objects, raw bytes, and `(bytes, prefixlen)`
+        tuples) are supported in both frozen and non-frozen modes.
 
         Args:
             keys: A sequence of IP addresses or network prefixes.
