@@ -489,6 +489,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.__hash__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __hash__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pattrie.Pattrie.get" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -537,6 +548,39 @@
     <span class="md-ellipsis">
       
         delete
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.clear" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clear
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.setdefault" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        setdefault
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update
       
     </span>
   </a>
@@ -782,6 +826,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.__hash__" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __hash__
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pattrie.Pattrie.get" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -830,6 +885,39 @@
     <span class="md-ellipsis">
       
         delete
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.clear" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clear
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.setdefault" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        setdefault
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        update
       
     </span>
   </a>
@@ -1442,6 +1530,24 @@ instead.</p>
 <div class="doc doc-object doc-function">
 
 
+<h3 id="pattrie.Pattrie.__hash__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__hash__</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Always raises <code>TypeError</code>: <code>Pattrie</code> is mutable and unhashable.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="pattrie.Pattrie.get" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">AddressKey</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">object</span></code>
 
@@ -1821,6 +1927,235 @@ raw address bytes — <code>bytes</code> or a <code>(bytes, prefixlen)</code> tu
             <td>
               <div class="doc-md-description">
                 <p>If the trie is frozen or the prefix is invalid.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.clear" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">clear</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Remove all entries from the trie.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the trie is frozen.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.setdefault" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="nb">object</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">object</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Insert <code>key</code> with <code>default</code> if absent; return the current value.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="pattrie._pattrie.NetworkKey">NetworkKey</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A network prefix (host bits are zeroed).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>default</code>
+            </td>
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Value to insert when <code>key</code> is absent. Defaults to <code>None</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="object">object</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The existing value if <code>key</code> is present, otherwise <code>default</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the trie is frozen and <code>key</code> is not present, or
+the prefix is invalid.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.update" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">update</span><span class="p">(</span><span class="n">other</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="n">NetworkKey</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span> <span class="o">|</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">NetworkKey</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]</span> <span class="o">|</span> <span class="n">Pattrie</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Merge entries from a mapping or iterable of pairs.</p>
+<p>Accepts a <code>dict</code>, another <code>Pattrie</code>, or any iterable of
+<code>(prefix, value)</code> pairs. Existing keys are overwritten.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>other</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Mapping">Mapping</span>[<span title="pattrie._pattrie.NetworkKey">NetworkKey</span>, <span title="object">object</span>] | <span title="collections.abc.Iterable">Iterable</span>[<span title="tuple">tuple</span>[<span title="pattrie._pattrie.NetworkKey">NetworkKey</span>, <span title="object">object</span>]] | <a class="autorefs autorefs-internal" title="pattrie.Pattrie (pattrie._pattrie.Pattrie)" href="#pattrie.Pattrie">Pattrie</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A mapping with an <code>.items()</code> method or an iterable of
+<code>(prefix, value)</code> pairs.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the trie is frozen, a prefix is malformed, or a
+prefix length exceeds <code>maxbits</code>.</p>
               </div>
             </td>
           </tr>
