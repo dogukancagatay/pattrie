@@ -116,22 +116,13 @@ fn parse_key_from_str(s: &str, family: i32, af_inet: i32) -> PyResult<IpNet> {
 /// `bytes` is big-endian/network order — exactly what Ipv4Addr/Ipv6Addr::from
 /// consume, so no byteswap is applied (unlike the bare-int fast path).
 fn net_from_octets(bytes: &[u8], prefix_len: Option<u8>, family: i32, af_inet: i32) -> PyResult<IpNet> {
-    let net = match bytes.len() {
-        4 => {
-            let octets: [u8; 4] = bytes.try_into().unwrap();
-            IpNet::V4(Ipv4Net::new(std::net::Ipv4Addr::from(octets), prefix_len.unwrap_or(32))
-                .map_err(|e| PyValueError::new_err(e.to_string()))?)
-        }
-        16 => {
-            let octets: [u8; 16] = bytes.try_into().unwrap();
-            IpNet::V6(Ipv6Net::new(std::net::Ipv6Addr::from(octets), prefix_len.unwrap_or(128))
-                .map_err(|e| PyValueError::new_err(e.to_string()))?)
-        }
+    let is_v4 = match bytes.len() {
+        4 => true,
+        16 => false,
         n => return Err(PyValueError::new_err(format!(
             "Invalid raw address: expected 4 or 16 bytes, got {}", n
         ))),
     };
-    let is_v4 = matches!(net, IpNet::V4(_));
     if (family == af_inet) != is_v4 {
         return Err(PyValueError::new_err(format!(
             "Address family mismatch: trie is {}, got {}-byte raw address",
@@ -139,7 +130,14 @@ fn net_from_octets(bytes: &[u8], prefix_len: Option<u8>, family: i32, af_inet: i
             bytes.len()
         )));
     }
-    Ok(net)
+    let map_err = |e: ipnet::PrefixLenError| PyValueError::new_err(e.to_string());
+    if is_v4 {
+        let octets: [u8; 4] = bytes.try_into().unwrap();
+        Ok(IpNet::V4(Ipv4Net::new(std::net::Ipv4Addr::from(octets), prefix_len.unwrap_or(32)).map_err(map_err)?))
+    } else {
+        let octets: [u8; 16] = bytes.try_into().unwrap();
+        Ok(IpNet::V6(Ipv6Net::new(std::net::Ipv6Addr::from(octets), prefix_len.unwrap_or(128)).map_err(map_err)?))
+    }
 }
 
 /// Recognize raw-bytes key forms and build the corresponding `IpNet`.

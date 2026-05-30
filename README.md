@@ -26,7 +26,7 @@ t.get_key("10.1.2.3")  # "10.1.0.0/16"
 t.get("192.0.2.1")     # None
 ```
 
-Keys can be strings, `ipaddress.IPv4Address`, `IPv4Network`, `IPv6Address`, or `IPv6Network`. For packet processing, keys may also be raw address bytes — a `bytes`/`bytearray`/`memoryview` of length 4 (IPv4) or 16 (IPv6), or a `(bytes, prefixlen)` tuple — e.g. `t[socket.inet_pton(socket.AF_INET, "10.1.2.3")]` or `t.get((raw, 8))`. This avoids the string formatting and re-parsing round-trip when the address is already available as bytes.
+Keys can be strings, `ipaddress.IPv4Address`, `IPv4Network`, `IPv6Address`, or `IPv6Network`. Keys may also be raw address bytes — a `bytes`/`bytearray`/`memoryview` of length 4 (IPv4) or 16 (IPv6), or a `(bytes, prefixlen)` tuple — useful for packet processing where the address is already in bytes.
 
 ### IPv6
 

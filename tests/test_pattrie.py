@@ -875,79 +875,58 @@ def test_insert_many_dict_items():
 # ---------------------------------------------------------------------------
 
 
-def test_raw_bytes_ipv4_bare():
+def test_raw_bare_lookup_ipv4():
     t = pattrie.Pattrie()
-    t["10.0.0.0/8"] = "rfc1918"
+    t["10.0.0.0/8"] = "a"
     raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
-    assert t[raw] == "rfc1918"
+    # bytes, bytearray, and memoryview all go through the buffer protocol.
+    assert t[raw] == "a"
+    assert t[bytearray(raw)] == "a"
+    assert t[memoryview(raw)] == "a"
 
 
-def test_raw_bytes_ipv6_bare():
+def test_raw_bare_lookup_ipv6():
     t = pattrie.Pattrie(128, socket.AF_INET6)
     t["2001:db8::/32"] = "docs"
     raw = socket.inet_pton(socket.AF_INET6, "2001:db8::1")
+    # bytes, bytearray, and memoryview all go through the buffer protocol.
     assert t[raw] == "docs"
+    assert t[bytearray(raw)] == "docs"
+    assert t[memoryview(raw)] == "docs"
 
 
-def test_raw_tuple_prefixlen_lookup():
+def test_raw_tuple_lookup_ipv4():
     t = pattrie.Pattrie()
-    t["10.0.0.0/8"] = "rfc1918"
+    t["10.0.0.0/8"] = "a"
     raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
-    assert t.get((raw, 32)) == "rfc1918"
     net = socket.inet_pton(socket.AF_INET, "10.0.0.0")
+    assert t.get((raw, 32)) == "a"
+    assert t.get((bytearray(raw), 32)) == "a"
+    assert t.get((memoryview(raw), 32)) == "a"
     assert t.has_key((net, 8)) is True
 
 
-def test_raw_tuple_ipv6():
+def test_raw_tuple_lookup_ipv6():
     t = pattrie.Pattrie(128, socket.AF_INET6)
     t["2001:db8::/32"] = "docs"
-    raw = socket.inet_pton(socket.AF_INET6, "2001:db8::1")
-    assert t.get((raw, 128)) == "docs"
-    net = socket.inet_pton(socket.AF_INET6, "2001:db8::")
-    assert t.has_key((net, 32)) is True
+    assert t.get((socket.inet_pton(socket.AF_INET6, "2001:db8::1"), 128)) == "docs"
+    assert t.has_key((socket.inet_pton(socket.AF_INET6, "2001:db8::"), 32)) is True
 
 
-def test_raw_tuple_bytearray_and_memoryview():
-    t = pattrie.Pattrie()
-    t["10.0.0.0/8"] = "a"
-    raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
-    assert t.get((bytearray(raw), 32)) == "a"
-    assert t.get((memoryview(raw), 32)) == "a"
-
-
-def test_raw_tuple_wrong_length_raises():
-    t = pattrie.Pattrie()
-    with pytest.raises(ValueError, match="expected 4 or 16 bytes"):
-        t[(b"\x01\x02", 8)] = "x"
-
-
-def test_raw_tuple_setitem_insert():
+def test_raw_tuple_setitem_truncates():
     t = pattrie.Pattrie()
     # Host bits set; insert path must truncate to the network.
-    raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
-    t[(raw, 8)] = "x"
+    t[(socket.inet_pton(socket.AF_INET, "10.1.2.3"), 8)] = "x"
     assert t["10.255.255.255"] == "x"
     assert t.get_key("10.1.2.3") == "10.0.0.0/8"
-
-
-def test_raw_bytearray_key():
-    t = pattrie.Pattrie()
-    t["10.0.0.0/8"] = "a"
-    raw = bytearray(socket.inet_pton(socket.AF_INET, "10.1.2.3"))
-    assert t[raw] == "a"
-
-
-def test_raw_memoryview_key():
-    t = pattrie.Pattrie()
-    t["10.0.0.0/8"] = "a"
-    raw = memoryview(socket.inet_pton(socket.AF_INET, "10.1.2.3"))
-    assert t[raw] == "a"
 
 
 def test_raw_wrong_length_raises():
     t = pattrie.Pattrie()
     with pytest.raises(ValueError, match="expected 4 or 16 bytes"):
         _ = t[b"\x01\x02"]
+    with pytest.raises(ValueError, match="expected 4 or 16 bytes"):
+        t[(b"\x01\x02", 8)] = "x"
 
 
 def test_raw_wrong_family_raises():
@@ -955,33 +934,41 @@ def test_raw_wrong_family_raises():
     raw6 = socket.inet_pton(socket.AF_INET6, "2001:db8::1")
     with pytest.raises(ValueError, match="Address family mismatch"):
         _ = t4[raw6]
+    with pytest.raises(ValueError, match="Address family mismatch"):
+        t4[(raw6, 128)] = "x"
 
     t6 = pattrie.Pattrie(128, socket.AF_INET6)
     raw4 = socket.inet_pton(socket.AF_INET, "10.1.2.3")
     with pytest.raises(ValueError, match="Address family mismatch"):
         _ = t6[raw4]
+    with pytest.raises(ValueError, match="Address family mismatch"):
+        t6[(raw4, 32)] = "x"
 
 
 def test_raw_tuple_prefixlen_out_of_range():
     t = pattrie.Pattrie()
-    raw = socket.inet_pton(socket.AF_INET, "10.0.0.0")
     with pytest.raises(ValueError):
-        t[(raw, 33)] = "x"
+        t[(socket.inet_pton(socket.AF_INET, "10.0.0.0"), 33)] = "x"
+
+    t6 = pattrie.Pattrie(128, socket.AF_INET6)
+    with pytest.raises(ValueError):
+        t6[(socket.inet_pton(socket.AF_INET6, "2001:db8::"), 129)] = "x"
 
 
-def test_raw_via_contains():
+def test_raw_tuple_non_int_prefixlen_falls_through():
+    # (bytes, non-int) must fall through to the str() fallback, not the raw
+    # path, so it raises a parse error rather than succeeding.
     t = pattrie.Pattrie()
-    t["10.0.0.0/8"] = "a"
-    hit = socket.inet_pton(socket.AF_INET, "10.1.2.3")
-    miss = socket.inet_pton(socket.AF_INET, "192.0.2.1")
-    assert hit in t
-    assert miss not in t
+    with pytest.raises(ValueError):
+        _ = t[(b"\x0a\x00\x00\x00", "8")]  # ty: ignore[invalid-argument-type]
 
 
-def test_raw_via_delete():
+def test_raw_via_contains_and_delete():
     t = pattrie.Pattrie()
     net = socket.inet_pton(socket.AF_INET, "10.0.0.0")
     t[(net, 8)] = "a"
+    assert socket.inet_pton(socket.AF_INET, "10.1.2.3") in t
+    assert socket.inet_pton(socket.AF_INET, "192.0.2.1") not in t
     del t[(net, 8)]
     assert t.has_key((net, 8)) is False
     with pytest.raises(KeyError):
@@ -1025,14 +1012,6 @@ def test_raw_via_insert_many():
     t.insert_many([((net, 8), "a"), (raw, "b")])
     assert t["10.1.2.3"] == "a"
     assert t["192.168.1.1"] == "b"
-
-
-def test_raw_tuple_non_int_prefixlen_falls_through():
-    # (bytes, non-int) must fall through to the str() fallback, not the raw
-    # path, so it raises a parse error rather than succeeding.
-    t = pattrie.Pattrie()
-    with pytest.raises(ValueError):
-        _ = t[(b"\x0a\x00\x00\x00", "8")]  # ty: ignore[invalid-argument-type]
 
 
 # ---------------------------------------------------------------------------
