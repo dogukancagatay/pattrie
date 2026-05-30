@@ -1309,3 +1309,110 @@ def test_parent_ipv6():
     assert t.parent("fe80::/48") == "fe80::/32"
     assert t.parent("fe80::/32") == "fe80::/16"
     assert t.parent("fe80::/16") is None
+
+
+# ---------------------------------------------------------------------------
+# get_all()
+# ---------------------------------------------------------------------------
+
+
+def test_get_all_full_chain():
+    t = pattrie.Pattrie()
+    t["0.0.0.0/0"] = "default"
+    t["10.0.0.0/8"] = "rfc1918"
+    t["10.1.0.0/16"] = "internal"
+    result = t.get_all("10.1.2.3")
+    assert result == [("10.1.0.0/16", "internal"), ("10.0.0.0/8", "rfc1918"), ("0.0.0.0/0", "default")]
+
+
+def test_get_all_no_match_returns_empty():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    assert t.get_all("192.168.0.1") == []
+
+
+def test_get_all_single_covering_prefix():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    result = t.get_all("10.1.2.3")
+    assert result == [("10.0.0.0/8", "a")]
+
+
+def test_get_all_exact_match_included():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    result = t.get_all("10.1.0.0/16")
+    assert result == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+def test_get_all_host_address_key():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert t.get_all("10.1.2.3") == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+def test_get_all_empty_trie():
+    t = pattrie.Pattrie()
+    assert t.get_all("10.0.0.1") == []
+
+
+def test_get_all_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "a"
+    t["fe80::/32"] = "b"
+    t["fe80::/48"] = "c"
+    result = t.get_all("fe80::1")
+    assert result == [("fe80::/48", "c"), ("fe80::/32", "b"), ("fe80::/16", "a")]
+
+
+def test_get_all_ipv6_no_match():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["fe80::/16"] = "a"
+    assert t.get_all("2001:db8::1") == []
+
+
+def test_get_all_raw_bytes_key():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
+    assert t.get_all(raw) == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+def test_get_all_wrong_family_raises():
+    t = pattrie.Pattrie()
+    with pytest.raises(ValueError):
+        t.get_all("fe80::1")
+
+
+def test_get_all_non_string_values():
+    t = pattrie.Pattrie()
+    t["0.0.0.0/0"] = None
+    t["10.0.0.0/8"] = 42
+    t["10.1.0.0/16"] = {"asn": 64512}
+    result = t.get_all("10.1.2.3")
+    assert result == [("10.1.0.0/16", {"asn": 64512}), ("10.0.0.0/8", 42), ("0.0.0.0/0", None)]
+
+
+def test_get_all_ipv4address_key():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert t.get_all(IPv4Address("10.1.2.3")) == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+def test_get_all_ipv4network_key():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert t.get_all(IPv4Network("10.1.0.0/16")) == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
+
+
+def test_get_all_frozen_trie():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t.freeze()
+    assert t.get_all("10.1.2.3") == [("10.1.0.0/16", "b"), ("10.0.0.0/8", "a")]
