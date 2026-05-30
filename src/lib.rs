@@ -8,38 +8,38 @@ use std::sync::{Arc, RwLock};
 use std::io::Write;
 
 /// Strip the `/len` suffix from a CIDR string, returning the bare network address.
-fn to_bare_addr(s: String) -> String {
+fn to_bare_addr(s: &str) -> String {
     match s.split_once('/') {
         Some((addr, _)) => addr.to_owned(),
-        None => s,
+        None => s.to_owned(),
     }
 }
 
 /// Format a prefix string, optionally stripping the `/len` suffix.
-fn format_key(s: String, bare: bool) -> String {
-    if bare { to_bare_addr(s) } else { s }
+fn format_key(s: &str, bare: bool) -> String {
+    if bare { to_bare_addr(s) } else { s.to_owned() }
 }
 
 /// Find the closest covering prefix (immediate parent) for `prefix`.
 /// Uses `.last()` on cover_keys — DoubleEndedIterator is unavailable so .rev() cannot be used.
-fn find_parent<P, T>(map: &PrefixMap<P, T>, prefix: &P, bare: bool) -> Option<String>
+fn find_parent<P, T>(map: &PrefixMap<P, T>, prefix: &P) -> Option<String>
 where
     P: Prefix + PartialEq + std::fmt::Display,
 {
     map.cover_keys(prefix)
         .filter(|p| *p != prefix)
         .last()
-        .map(|p| format_key(p.to_string(), bare))
+        .map(|p| p.to_string())
 }
 
 /// Collect all stored prefixes more specific than `prefix` (self excluded).
-fn find_children<P, T>(map: &PrefixMap<P, T>, prefix: &P, bare: bool) -> Vec<String>
+fn find_children<P, T>(map: &PrefixMap<P, T>, prefix: &P) -> Vec<String>
 where
     P: Prefix + PartialEq + std::fmt::Display,
 {
     map.children(prefix)
         .filter(|(p, _)| *p != prefix)
-        .map(|(p, _)| format_key(p.to_string(), bare))
+        .map(|(p, _)| p.to_string())
         .collect()
 }
 
@@ -48,18 +48,12 @@ fn collect_values<P: Prefix>(map: &PrefixMap<P, Py<PyAny>>, py: Python<'_>) -> V
     map.iter().map(|(_, v)| v.clone_ref(py)).collect()
 }
 
-/// Collect all stored (prefix, value) pairs as Python tuples in trie traversal order.
-fn collect_items<P>(map: &PrefixMap<P, Py<PyAny>>, py: Python<'_>, bare: bool) -> PyResult<Vec<Py<PyAny>>>
+/// Collect all stored (prefix, value) pairs in trie traversal order.
+fn collect_items<P>(map: &PrefixMap<P, Py<PyAny>>, py: Python<'_>) -> Vec<(String, Py<PyAny>)>
 where
     P: Prefix + std::fmt::Display,
 {
-    map.iter().map(|(p, v)| {
-        let key_str = format_key(p.to_string(), bare);
-        PyTuple::new(py, [
-            PyString::new(py, &key_str).into_any().unbind(),
-            v.clone_ref(py),
-        ]).map(|t| t.into_any().unbind())
-    }).collect()
+    map.iter().map(|(p, v)| (p.to_string(), v.clone_ref(py))).collect()
 }
 
 /// Collect all stored (prefix, value) covering pairs for `prefix`,
@@ -474,15 +468,12 @@ impl Pattrie {
         let net = parse_key(_py, key, self.family, af_inet)?;
 
         let guard = self.inner.read().unwrap();
-        Ok(match (&*guard, &net) {
-            (TrieInner::V4(map), IpNet::V4(v4)) => {
-                map.get_lpm(v4).map(|(prefix, _)| format_key(prefix.to_string(), bare))
-            }
-            (TrieInner::V6(map), IpNet::V6(v6)) => {
-                map.get_lpm(v6).map(|(prefix, _)| format_key(prefix.to_string(), bare))
-            }
+        let full = match (&*guard, &net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => map.get_lpm(v4).map(|(p, _)| p.to_string()),
+            (TrieInner::V6(map), IpNet::V6(v6)) => map.get_lpm(v6).map(|(p, _)| p.to_string()),
             _ => None,
-        })
+        };
+        Ok(full.map(|s| format_key(&s, bare)))
     }
 
     fn __delitem__(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<()> {
@@ -749,10 +740,11 @@ impl Pattrie {
     #[pyo3(signature = (bare=false))]
     fn keys(&self, bare: bool) -> Vec<String> {
         let guard = self.inner.read().unwrap();
-        match &*guard {
-            TrieInner::V4(map) => map.iter().map(|(p, _)| format_key(p.to_string(), bare)).collect(),
-            TrieInner::V6(map) => map.iter().map(|(p, _)| format_key(p.to_string(), bare)).collect(),
-        }
+        let full: Vec<String> = match &*guard {
+            TrieInner::V4(map) => map.iter().map(|(p, _)| p.to_string()).collect(),
+            TrieInner::V6(map) => map.iter().map(|(p, _)| p.to_string()).collect(),
+        };
+        if bare { full.iter().map(|s| to_bare_addr(s)).collect() } else { full }
     }
 
     fn values(&self, py: Python<'_>) -> Vec<Py<PyAny>> {
@@ -766,10 +758,15 @@ impl Pattrie {
     #[pyo3(signature = (bare=false))]
     fn items(&self, py: Python<'_>, bare: bool) -> PyResult<Vec<Py<PyAny>>> {
         let guard = self.inner.read().unwrap();
-        Ok(match &*guard {
-            TrieInner::V4(map) => collect_items(map, py, bare)?,
-            TrieInner::V6(map) => collect_items(map, py, bare)?,
-        })
+        let pairs = match &*guard {
+            TrieInner::V4(map) => collect_items(map, py),
+            TrieInner::V6(map) => collect_items(map, py),
+        };
+        pairs.into_iter().map(|(k, v)| {
+            let key_str = format_key(&k, bare);
+            PyTuple::new(py, [PyString::new(py, &key_str).into_any().unbind(), v])
+                .map(|t| t.into_any().unbind())
+        }).collect()
     }
 
     #[pyo3(signature = (prefix, bare=false))]
@@ -778,11 +775,12 @@ impl Pattrie {
         let net = parse_network_key(py, prefix, self.family, af_inet)?;
 
         let guard = self.inner.read().unwrap();
-        Ok(match (&*guard, net) {
-            (TrieInner::V4(map), IpNet::V4(v4)) => find_children(map, &v4, bare),
-            (TrieInner::V6(map), IpNet::V6(v6)) => find_children(map, &v6, bare),
+        let full = match (&*guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => find_children(map, &v4),
+            (TrieInner::V6(map), IpNet::V6(v6)) => find_children(map, &v6),
             _ => unreachable!(),
-        })
+        };
+        Ok(if bare { full.iter().map(|s| to_bare_addr(s)).collect() } else { full })
     }
 
     #[pyo3(signature = (prefix, bare=false))]
@@ -791,11 +789,12 @@ impl Pattrie {
         let net = parse_network_key(py, prefix, self.family, af_inet)?;
 
         let guard = self.inner.read().unwrap();
-        Ok(match (&*guard, net) {
-            (TrieInner::V4(map), IpNet::V4(v4)) => find_parent(map, &v4, bare),
-            (TrieInner::V6(map), IpNet::V6(v6)) => find_parent(map, &v6, bare),
+        let full = match (&*guard, net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => find_parent(map, &v4),
+            (TrieInner::V6(map), IpNet::V6(v6)) => find_parent(map, &v6),
             _ => unreachable!(),
-        })
+        };
+        Ok(full.map(|s| format_key(&s, bare)))
     }
 
     fn get_all(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {

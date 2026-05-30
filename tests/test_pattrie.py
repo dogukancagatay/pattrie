@@ -1862,6 +1862,24 @@ def test_parent_bare_none_when_no_parent():
     assert t.parent("10.0.0.0/8", bare=True) is None
 
 
+def test_parent_host_route_ipv4():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.2.0/24"] = "b"
+    t["10.1.2.3/32"] = "c"
+    assert t.parent("10.1.2.3/32") == "10.1.2.0/24"
+    assert t.parent("10.1.2.3/32", bare=True) == "10.1.2.0"
+
+
+def test_parent_host_route_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "a"
+    t["2001:db8:1::/64"] = "b"
+    t["2001:db8:1::1/128"] = "c"
+    assert t.parent("2001:db8:1::1/128") == "2001:db8:1::/64"
+    assert t.parent("2001:db8:1::1/128", bare=True) == "2001:db8:1::"
+
+
 def test_get_key_default_cidr():
     t = pattrie.Pattrie()
     t["10.0.0.0/8"] = "a"
@@ -1878,6 +1896,18 @@ def test_get_key_bare_ipv6():
     t = pattrie.Pattrie(128, socket.AF_INET6)
     t["2001:db8::/32"] = "a"
     assert t.get_key("2001:db8::1", bare=True) == "2001:db8::"
+
+
+def test_get_key_bare_ipv4_host_route():
+    t = pattrie.Pattrie()
+    t["10.1.2.3/32"] = "a"
+    assert t.get_key("10.1.2.3", bare=True) == "10.1.2.3"
+
+
+def test_get_key_bare_ipv6_host_route():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::1/128"] = "a"
+    assert t.get_key("2001:db8::1", bare=True) == "2001:db8::1"
 
 
 def test_get_key_bare_none_on_miss():
@@ -1905,6 +1935,7 @@ def test_items_bare_duplicate_keys_dict_loses_entry():
     assert len(pairs) == 2
     assert pairs[0][0] == "10.0.0.0"
     assert pairs[1][0] == "10.0.0.0"
-    # dict() collapses duplicates — the second value wins
+    # dict() collapses duplicates — the more-specific (/16) entry is last and wins
     d = dict(pairs)  # type: ignore[arg-type]
     assert len(d) == 1
+    assert d["10.0.0.0"] == "b"
