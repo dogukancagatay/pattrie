@@ -994,14 +994,41 @@ def test_raw_via_get_many_unfrozen():
     assert t.get_many(keys, default="miss") == ["a", "b", "miss", "miss"]
 
 
-def test_raw_get_many_frozen_unsupported():
-    # Raw-bytes keys are intentionally unsupported in frozen get_many; they
-    # are treated as misses rather than raising.
+def test_raw_get_many_frozen_supported():
     t = pattrie.Pattrie()
     t["10.0.0.0/8"] = "a"
+    t["192.168.0.0/16"] = "b"
     t.freeze()
     raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
-    assert t.get_many([raw, "10.1.2.3"], default="miss") == ["miss", "a"]
+    net = socket.inet_pton(socket.AF_INET, "192.168.0.0")
+    keys = [raw, bytearray(raw), memoryview(raw), (net, 16), "172.16.0.1", b"\x01\x02"]
+    assert t.get_many(keys, default="miss") == ["a", "a", "a", "b", "miss", "miss"]
+
+
+def test_raw_get_many_frozen_supported_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "docs"
+    t["fe80::/10"] = "link-local"
+    t.freeze()
+    raw = socket.inet_pton(socket.AF_INET6, "2001:db8::1")
+    net = socket.inet_pton(socket.AF_INET6, "fe80::1")
+    keys = [raw, bytearray(raw), (net, 128), b"\x01\x02"]
+    assert t.get_many(keys, default="miss") == ["docs", "docs", "link-local", "miss"]
+
+
+def test_raw_get_many_frozen_vs_unfrozen_parity():
+    """Frozen and non-frozen get_many must return identical results for the same mixed key list."""
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["192.168.0.0/16"] = "b"
+    raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
+    net = socket.inet_pton(socket.AF_INET, "192.168.0.0")
+    keys = [raw, bytearray(raw), memoryview(raw), (net, 16), "172.16.0.1", b"\x01\x02"]
+
+    unfrozen_result = t.get_many(keys, default="miss")
+    t.freeze()
+    frozen_result = t.get_many(keys, default="miss")
+    assert frozen_result == unfrozen_result
 
 
 def test_raw_via_insert_many():

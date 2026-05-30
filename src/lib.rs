@@ -63,6 +63,12 @@ impl TrieInner {
     }
 }
 
+enum FrozenKey {
+    Str(String),
+    Raw(Vec<u8>, Option<u8>),
+    Invalid,
+}
+
 fn check_mutable(frozen: bool) -> PyResult<()> {
     if frozen {
         return Err(PyValueError::new_err("Pattrie is frozen and cannot be modified"));
@@ -140,6 +146,26 @@ fn net_from_octets(bytes: &[u8], prefix_len: Option<u8>, family: i32, af_inet: i
     }
 }
 
+/// Extract owned raw-address bytes (and optional prefix length) from a key.
+/// Recognizes a `(bytes, prefixlen)` 2-tuple or bare bytes/bytearray/memoryview.
+/// Returns `None` for anything else (str, int, ipaddress objects, or a tuple whose
+/// prefixlen isn't an int) so callers fall through to their other parse paths. Requires the GIL.
+fn extract_raw_bytes_like(key: &Bound<'_, PyAny>) -> Option<(Vec<u8>, Option<u8>)> {
+    if let Ok(tup) = key.cast::<PyTuple>() {
+        if tup.len() == 2 {
+            if let Ok(raw) = tup.get_item(0).ok()?.extract::<Vec<u8>>() {
+                if let Ok(plen) = tup.get_item(1).ok()?.extract::<u8>() {
+                    return Some((raw, Some(plen)));
+                }
+            }
+        }
+        return None;
+    }
+    // Bare bytes/bytearray/memoryview via the buffer protocol (contiguous only;
+    // non-contiguous buffers Err and fall through).
+    key.extract::<Vec<u8>>().ok().map(|raw| (raw, None))
+}
+
 /// Recognize raw-bytes key forms and build the corresponding `IpNet`.
 ///
 /// Two forms are accepted: a `(bytes, prefixlen)` 2-tuple, or bare bytes/
@@ -151,20 +177,8 @@ fn parse_raw_bytes_like(
     family: i32,
     af_inet: i32,
 ) -> Option<PyResult<IpNet>> {
-    if let Ok(tup) = key.cast::<PyTuple>() {
-        if tup.len() == 2 {
-            if let Ok(raw) = tup.get_item(0).ok()?.extract::<Vec<u8>>() {
-                if let Ok(plen) = tup.get_item(1).ok()?.extract::<u8>() {
-                    return Some(net_from_octets(&raw, Some(plen), family, af_inet));
-                }
-            }
-        }
-        return None;
-    }
-    // Bare bytes/bytearray/memoryview via the buffer protocol (contiguous only;
-    // non-contiguous buffers Err and fall through).
-    let raw = key.extract::<Vec<u8>>().ok()?;
-    Some(net_from_octets(&raw, None, family, af_inet))
+    let (raw, plen) = extract_raw_bytes_like(key)?;
+    Some(net_from_octets(&raw, plen, family, af_inet))
 }
 
 /// Parse a Python key (str or ipaddress object) into an IpNet.
@@ -577,26 +591,37 @@ impl Pattrie {
         let mut results: Vec<Py<PyAny>> = Vec::with_capacity(n);
 
         if self.frozen {
-            // Phase 1: extract all keys as strings while holding the GIL.
-            let mut str_keys: Vec<Option<String>> = Vec::with_capacity(n);
+            // Phase 1: extract all keys into owned FrozenKey while holding the GIL.
+            // Order: PyString first (zero-copy), raw bytes second (must precede str() fallback
+            // or bytes repr would stringify to e.g. "b'\\n\\x01\\x02\\x03'" and be lost),
+            // then str() fallback for ipaddress objects, ints, etc.
+            let mut frozen_keys: Vec<FrozenKey> = Vec::with_capacity(n);
             for item in keys.iter() {
-                let s = if let Ok(py_str) = item.cast::<PyString>() {
-                    py_str.to_str().map(|s| s.to_owned()).ok()
+                let fk = if let Ok(py_str) = item.cast::<PyString>() {
+                    py_str.to_str().map(|s| FrozenKey::Str(s.to_owned()))
+                        .unwrap_or(FrozenKey::Invalid)
+                } else if let Some((raw, plen)) = extract_raw_bytes_like(&item) {
+                    FrozenKey::Raw(raw, plen)
                 } else {
-                    item.str().and_then(|ps| ps.to_str().map(|s| s.to_owned())).ok()
+                    item.str().and_then(|ps| ps.to_str().map(|s| s.to_owned()))
+                        .map(FrozenKey::Str).unwrap_or(FrozenKey::Invalid)
                 };
-                str_keys.push(s);
+                frozen_keys.push(fk);
             }
 
             let inner_arc = Arc::clone(&self.inner);
             let family = self.family;
             let af_inet = self.af_inet;
 
-            // Phase 2: all trie traversals without the GIL.
+            // Phase 2: all trie traversals without the GIL (pure Rust on owned data).
             let matched: Vec<Option<IpNet>> = py.detach(|| {
                 let guard = inner_arc.read().unwrap();
-                str_keys.iter().map(|maybe_s| {
-                    let net = parse_key_from_str(maybe_s.as_deref()?, family, af_inet).ok()?;
+                frozen_keys.iter().map(|fk| {
+                    let net = match fk {
+                        FrozenKey::Str(s) => parse_key_from_str(s, family, af_inet).ok()?,
+                        FrozenKey::Raw(raw, plen) => net_from_octets(raw, *plen, family, af_inet).ok()?,
+                        FrozenKey::Invalid => return None,
+                    };
                     match (&*guard, &net) {
                         (TrieInner::V4(map), IpNet::V4(v4)) => {
                             map.get_lpm(v4).map(|(p, _)| IpNet::V4(*p))
