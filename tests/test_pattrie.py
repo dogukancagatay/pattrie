@@ -1643,3 +1643,34 @@ def test_update_is_atomic_on_bad_prefix():
     with pytest.raises(ValueError):
         t.update([("10.0.0.0/8", "a"), ("not-an-ip", "b")])
     assert len(t) == 0
+
+
+def test_repr_empty():
+    t = pattrie.Pattrie()
+    r = repr(t)
+    assert "Pattrie" in r
+
+
+def test_repr_contains_key_and_value():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "rfc1918"
+    r = repr(t)
+    assert "10.0.0.0/8" in r
+    assert "rfc1918" in r
+
+
+def test_repr_truncates_beyond_5():
+    t = pattrie.Pattrie()
+    for i in range(10):
+        t[f"10.{i}.0.0/16"] = i
+    r = repr(t)
+    assert "..." in r
+
+
+def test_repr_ipv6_contains_key_and_family():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "company"
+    r = repr(t)
+    assert "2001:db8::/32" in r
+    assert "company" in r
+    assert "AF_INET6" in r

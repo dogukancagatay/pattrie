@@ -151,6 +151,7 @@ class Pattrie:
         """Iterate over all stored prefixes as CIDR strings."""
         ...
 
+    def __repr__(self) -> str: ...
 
     def get(self, key: AddressKey, default: object = None) -> object:
         """Longest-prefix-match lookup, returning `default` on a miss.

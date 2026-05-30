@@ -570,6 +570,38 @@ impl Pattrie {
         Ok(())
     }
 
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        let family_name = if self.family == self.af_inet { "AF_INET" } else { "AF_INET6" };
+
+        let guard = self.inner.read().unwrap();
+        let total = match &*guard {
+            TrieInner::V4(map) => map.len(),
+            TrieInner::V6(map) => map.len(),
+        };
+
+        const LIMIT: usize = 5;
+        let mut pairs: Vec<String> = Vec::with_capacity(LIMIT);
+        let iter: Box<dyn Iterator<Item = (String, &Py<PyAny>)>> = match &*guard {
+            TrieInner::V4(map) => Box::new(map.iter().map(|(p, v)| (p.to_string(), v))),
+            TrieInner::V6(map) => Box::new(map.iter().map(|(p, v)| (p.to_string(), v))),
+        };
+        for (p, v) in iter.take(LIMIT) {
+            let val_repr = v.bind(py).repr()?.to_string();
+            pairs.push(format!("'{}': {}", p, val_repr));
+        }
+        let entries_str = if total > LIMIT {
+            format!("{{{}, ...}}", pairs.join(", "))
+        } else if pairs.is_empty() {
+            "{}".to_string()
+        } else {
+            format!("{{{}}}", pairs.join(", "))
+        };
+        Ok(format!(
+            "Pattrie({}, maxbits={}, family={})",
+            entries_str, self.maxbits, family_name
+        ))
+    }
+
     #[pyo3(signature = (key_or_addr, value_or_prefixlen, value=None))]
     fn insert(
         &self,
