@@ -66,7 +66,6 @@ impl TrieInner {
 enum FrozenKey {
     Str(String),
     Raw(Vec<u8>, Option<u8>),
-    Invalid,
 }
 
 fn check_mutable(frozen: bool) -> PyResult<()> {
@@ -591,20 +590,19 @@ impl Pattrie {
         let mut results: Vec<Py<PyAny>> = Vec::with_capacity(n);
 
         if self.frozen {
-            // Phase 1: extract all keys into owned FrozenKey while holding the GIL.
+            // Phase 1: extract all keys into owned Option<FrozenKey> while holding the GIL.
             // Order: PyString first (zero-copy), raw bytes second (must precede str() fallback
             // or bytes repr would stringify to e.g. "b'\\n\\x01\\x02\\x03'" and be lost),
-            // then str() fallback for ipaddress objects, ints, etc.
-            let mut frozen_keys: Vec<FrozenKey> = Vec::with_capacity(n);
+            // then str() fallback for ipaddress objects, ints, etc. None for anything invalid.
+            let mut frozen_keys: Vec<Option<FrozenKey>> = Vec::with_capacity(n);
             for item in keys.iter() {
                 let fk = if let Ok(py_str) = item.cast::<PyString>() {
-                    py_str.to_str().map(|s| FrozenKey::Str(s.to_owned()))
-                        .unwrap_or(FrozenKey::Invalid)
+                    py_str.to_str().map(|s| FrozenKey::Str(s.to_owned())).ok()
                 } else if let Some((raw, plen)) = extract_raw_bytes_like(&item) {
-                    FrozenKey::Raw(raw, plen)
+                    Some(FrozenKey::Raw(raw, plen))
                 } else {
                     item.str().and_then(|ps| ps.to_str().map(|s| s.to_owned()))
-                        .map(FrozenKey::Str).unwrap_or(FrozenKey::Invalid)
+                        .map(FrozenKey::Str).ok()
                 };
                 frozen_keys.push(fk);
             }
@@ -617,10 +615,10 @@ impl Pattrie {
             let matched: Vec<Option<IpNet>> = py.detach(|| {
                 let guard = inner_arc.read().unwrap();
                 frozen_keys.iter().map(|fk| {
+                    let fk = fk.as_ref()?;
                     let net = match fk {
                         FrozenKey::Str(s) => parse_key_from_str(s, family, af_inet).ok()?,
                         FrozenKey::Raw(raw, plen) => net_from_octets(raw, *plen, family, af_inet).ok()?,
-                        FrozenKey::Invalid => return None,
                     };
                     match (&*guard, &net) {
                         (TrieInner::V4(map), IpNet::V4(v4)) => {

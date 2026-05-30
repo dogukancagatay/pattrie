@@ -1031,6 +1031,70 @@ def test_raw_get_many_frozen_vs_unfrozen_parity():
     assert frozen_result == unfrozen_result
 
 
+def test_raw_get_many_non_contiguous_memoryview_is_miss():
+    """Non-contiguous memoryview falls through to a miss without raising."""
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    raw = socket.inet_pton(socket.AF_INET, "10.1.2.3")
+    non_contiguous = memoryview(raw)[::2]
+    assert t.get_many([non_contiguous], default="miss") == ["miss"]
+    t.freeze()
+    assert t.get_many([non_contiguous], default="miss") == ["miss"]
+
+
+def test_raw_get_many_non_contiguous_memoryview_ipv6_is_miss():
+    """Non-contiguous IPv6 memoryview falls through to a miss without raising."""
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "a"
+    raw = socket.inet_pton(socket.AF_INET6, "2001:db8::1")
+    non_contiguous = memoryview(raw)[::2]
+    assert t.get_many([non_contiguous], default="miss") == ["miss"]
+    t.freeze()
+    assert t.get_many([non_contiguous], default="miss") == ["miss"]
+
+
+def test_raw_get_many_invalid_tuple_prefixlen_is_miss():
+    """(bytes, non-int/None/negative/out-of-range) tuples are treated as misses in get_many."""
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    net = socket.inet_pton(socket.AF_INET, "10.0.0.0")
+    bad_keys: list = [
+        (net, "16"),  # non-int prefixlen
+        (net, None),  # None prefixlen
+        (net, -1),  # negative prefixlen
+        (net, 33),  # just above max valid for IPv4
+        (net, 40),  # out-of-range for IPv4
+    ]
+    assert t.get_many(bad_keys, default="miss") == ["miss"] * 5
+    t.freeze()
+    assert t.get_many(bad_keys, default="miss") == ["miss"] * 5
+
+
+def test_raw_get_many_valid_tuple_prefixlen_ipv4_bounds():
+    """(bytes, 32) — max valid IPv4 prefixlen — resolves correctly in both modes."""
+    t = pattrie.Pattrie()
+    t["10.0.0.0/32"] = "host"
+    net = socket.inet_pton(socket.AF_INET, "10.0.0.0")
+    assert t.get_many([(net, 32)], default="miss") == ["host"]
+    t.freeze()
+    assert t.get_many([(net, 32)], default="miss") == ["host"]
+
+
+def test_raw_get_many_frozen_vs_unfrozen_parity_ipv6():
+    """Frozen and non-frozen get_many return identical results for IPv6 raw-bytes keys."""
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "docs"
+    t["fe80::/10"] = "link-local"
+    raw = socket.inet_pton(socket.AF_INET6, "2001:db8::1")
+    net = socket.inet_pton(socket.AF_INET6, "fe80::1")
+    keys = [raw, bytearray(raw), memoryview(raw), (net, 128), "2001:db8::1", b"\x01\x02"]
+
+    unfrozen_result = t.get_many(keys, default="miss")
+    t.freeze()
+    frozen_result = t.get_many(keys, default="miss")
+    assert frozen_result == unfrozen_result
+
+
 def test_raw_via_insert_many():
     t = pattrie.Pattrie()
     net = socket.inet_pton(socket.AF_INET, "10.0.0.0")
