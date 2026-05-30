@@ -588,6 +588,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.get_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_all
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pattrie.Pattrie.parent" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -863,6 +874,17 @@
     <span class="md-ellipsis">
       
         children
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.get_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_all
       
     </span>
   </a>
@@ -1990,6 +2012,137 @@ t.children(&quot;10.0.0.0/8&quot;)
 
 t.children(&quot;10.0.0.0/9&quot;)   # not stored — still returns descendants
 # → [&quot;10.1.0.0/16&quot;, &quot;10.1.1.0/24&quot;]
+</code></pre>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.get_all" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">get_all</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">AddressKey</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return all covering prefixes for <code>key</code>, most-specific first.</p>
+<p>Walks the full longest-prefix-match chain and returns every stored
+prefix that covers <code>key</code>, ordered from most specific (longest
+prefix length) to least specific (shortest prefix length). Returns
+an empty list when no prefix in the trie covers <code>key</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="pattrie._pattrie.AddressKey">AddressKey</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An IP address or network prefix (string, <code>IPv4Address</code>,
+<code>IPv6Address</code>, <code>IPv4Network</code>, <code>IPv6Network</code>, raw
+address bytes — <code>bytes</code>/<code>bytearray</code>/<code>memoryview</code> or a
+<code>(bytes, prefixlen)</code> tuple).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="tuple">tuple</span>[<span title="str">str</span>, <span title="object">object</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A list of <code>(prefix, value)</code> tuples in most-specific-first</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="tuple">tuple</span>[<span title="str">str</span>, <span title="object">object</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>order.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>key</code> belongs to the wrong address family or
+is malformed.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <pre><code class="language-python">t = Pattrie()
+t[&quot;0.0.0.0/0&quot;] = &quot;default&quot;
+t[&quot;10.0.0.0/8&quot;] = &quot;rfc1918&quot;
+t[&quot;10.1.0.0/16&quot;] = &quot;internal&quot;
+
+t.get_all(&quot;10.1.2.3&quot;)
+# → [(&quot;10.1.0.0/16&quot;, &quot;internal&quot;), (&quot;10.0.0.0/8&quot;, &quot;rfc1918&quot;), (&quot;0.0.0.0/0&quot;, &quot;default&quot;)]
+
+t.get_all(&quot;192.168.0.1&quot;)
+# → [(&quot;0.0.0.0/0&quot;, &quot;default&quot;)]
+
+t.get_all(&quot;1.2.3.4&quot;)   # no covering prefix
+# → []
 </code></pre>
 </details>
 
