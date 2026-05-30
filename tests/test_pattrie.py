@@ -1753,3 +1753,132 @@ def test_eq_ipv6_same_entries():
     t2 = pattrie.Pattrie(128, socket.AF_INET6)
     t2["2001:db8::/32"] = "a"
     assert t1 == t2
+
+
+# ---------------------------------------------------------------------------
+# bare=True tests (issue #45)
+# ---------------------------------------------------------------------------
+
+def test_keys_default_cidr():
+    t = pattrie.Pattrie()
+    t["10.1.0.0/24"] = "a"
+    t["10.2.0.0/16"] = "b"
+    assert t.keys() == ["10.1.0.0/24", "10.2.0.0/16"]
+
+
+def test_keys_bare_ipv4():
+    t = pattrie.Pattrie()
+    t["10.1.0.0/24"] = "a"
+    t["10.2.0.0/16"] = "b"
+    assert t.keys(bare=True) == ["10.1.0.0", "10.2.0.0"]
+
+
+def test_keys_bare_ipv4_host_route():
+    t = pattrie.Pattrie()
+    t["10.1.2.3/32"] = "a"
+    assert t.keys(bare=True) == ["10.1.2.3"]
+
+
+def test_keys_bare_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "a"
+    t["2001:db8:1::/48"] = "b"
+    assert t.keys(bare=True) == ["2001:db8::", "2001:db8:1::"]
+
+
+def test_keys_bare_ipv6_host_route():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::1/128"] = "a"
+    assert t.keys(bare=True) == ["2001:db8::1"]
+
+
+def test_items_default_cidr():
+    t = pattrie.Pattrie()
+    t["10.1.0.0/24"] = "a"
+    assert t.items() == [("10.1.0.0/24", "a")]
+
+
+def test_items_bare_ipv4():
+    t = pattrie.Pattrie()
+    t["10.1.0.0/24"] = "a"
+    t["10.2.0.0/16"] = "b"
+    assert t.items(bare=True) == [("10.1.0.0", "a"), ("10.2.0.0", "b")]
+
+
+def test_items_bare_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "x"
+    assert t.items(bare=True) == [("2001:db8::", "x")]
+
+
+def test_children_default_cidr():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t["10.2.0.0/16"] = "c"
+    assert t.children("10.0.0.0/8") == ["10.1.0.0/16", "10.2.0.0/16"]
+
+
+def test_children_bare_ipv4():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    t["10.2.0.0/16"] = "c"
+    assert t.children("10.0.0.0/8", bare=True) == ["10.1.0.0", "10.2.0.0"]
+
+
+def test_children_bare_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "a"
+    t["2001:db8:1::/48"] = "b"
+    assert t.children("2001:db8::/32", bare=True) == ["2001:db8:1::"]
+
+
+def test_parent_default_cidr():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert t.parent("10.1.0.0/16") == "10.0.0.0/8"
+
+
+def test_parent_bare_ipv4():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    t["10.1.0.0/16"] = "b"
+    assert t.parent("10.1.0.0/16", bare=True) == "10.0.0.0"
+
+
+def test_parent_bare_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "a"
+    t["2001:db8:1::/48"] = "b"
+    assert t.parent("2001:db8:1::/48", bare=True) == "2001:db8::"
+
+
+def test_parent_bare_none_when_no_parent():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    assert t.parent("10.0.0.0/8", bare=True) is None
+
+
+def test_get_key_default_cidr():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    assert t.get_key("10.1.2.3") == "10.0.0.0/8"
+
+
+def test_get_key_bare_ipv4():
+    t = pattrie.Pattrie()
+    t["10.0.0.0/8"] = "a"
+    assert t.get_key("10.1.2.3", bare=True) == "10.0.0.0"
+
+
+def test_get_key_bare_ipv6():
+    t = pattrie.Pattrie(128, socket.AF_INET6)
+    t["2001:db8::/32"] = "a"
+    assert t.get_key("2001:db8::1", bare=True) == "2001:db8::"
+
+
+def test_get_key_bare_none_on_miss():
+    t = pattrie.Pattrie()
+    assert t.get_key("10.1.2.3", bare=True) is None
