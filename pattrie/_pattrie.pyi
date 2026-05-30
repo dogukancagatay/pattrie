@@ -282,6 +282,47 @@ class Pattrie:
         """
         ...
 
+    def get_all(self, key: AddressKey) -> list[tuple[str, object]]:
+        """Return all covering prefixes for ``key``, most-specific first.
+
+        Walks the full longest-prefix-match chain and returns every stored
+        prefix that covers ``key``, ordered from most specific (longest
+        prefix length) to least specific (shortest prefix length). Returns
+        an empty list when no prefix in the trie covers ``key``.
+
+        Args:
+            key: An IP address or network prefix (string, ``IPv4Address``,
+                ``IPv6Address``, ``IPv4Network``, ``IPv6Network``, raw
+                address bytes — ``bytes``/``bytearray``/``memoryview`` or a
+                ``(bytes, prefixlen)`` tuple).
+
+        Returns:
+            A list of ``(prefix, value)`` tuples in most-specific-first
+            order.
+
+        Raises:
+            ValueError: If ``key`` belongs to the wrong address family or
+                is malformed.
+
+        Example:
+            ```python
+            t = Pattrie()
+            t["0.0.0.0/0"] = "default"
+            t["10.0.0.0/8"] = "rfc1918"
+            t["10.1.0.0/16"] = "internal"
+
+            t.get_all("10.1.2.3")
+            # → [("10.1.0.0/16", "internal"), ("10.0.0.0/8", "rfc1918"), ("0.0.0.0/0", "default")]
+
+            t.get_all("192.168.0.1")
+            # → [("0.0.0.0/0", "default")]
+
+            t.get_all("1.2.3.4")   # no covering prefix
+            # → []
+            ```
+        """
+        ...
+
     def parent(self, prefix: NetworkKey) -> str | None:
         """Return the closest covering prefix for ``prefix``.
 

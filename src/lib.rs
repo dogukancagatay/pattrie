@@ -48,6 +48,30 @@ where
     }).collect()
 }
 
+/// Collect all stored (prefix, value) covering pairs for `prefix`,
+/// most-specific first (reversed cover_keys order).
+fn collect_covering_items<P>(
+    map: &PrefixMap<P, Py<PyAny>>,
+    prefix: &P,
+    py: Python<'_>,
+) -> PyResult<Vec<Py<PyAny>>>
+where
+    P: Prefix + std::fmt::Display,
+{
+    // cover_keys yields from least-specific to most-specific; collect then reverse.
+    let pairs: Vec<(&P, &Py<PyAny>)> = map
+        .cover_keys(prefix)
+        .filter_map(|p| map.get(p).map(|v| (p, v)))
+        .collect();
+
+    pairs.into_iter().rev().map(|(p, v)| {
+        PyTuple::new(py, [
+            PyString::new(py, &p.to_string()).into_any().unbind(),
+            v.clone_ref(py),
+        ]).map(|t| t.into_any().unbind())
+    }).collect()
+}
+
 enum TrieInner {
     V4(PrefixMap<Ipv4Net, Py<PyAny>>),
     V6(PrefixMap<Ipv6Net, Py<PyAny>>),
@@ -576,6 +600,18 @@ impl Pattrie {
             (TrieInner::V6(map), IpNet::V6(v6)) => find_parent(map, &v6),
             _ => unreachable!(),
         })
+    }
+
+    fn get_all(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
+        let af_inet = self.af_inet;
+        let net = parse_key(py, key, self.family, af_inet)?;
+
+        let guard = self.inner.read().unwrap();
+        match (&*guard, &net) {
+            (TrieInner::V4(map), IpNet::V4(v4)) => collect_covering_items(map, v4, py),
+            (TrieInner::V6(map), IpNet::V6(v6)) => collect_covering_items(map, v6, py),
+            _ => unreachable!(),
+        }
     }
 
     #[pyo3(signature = (keys, default=None))]
