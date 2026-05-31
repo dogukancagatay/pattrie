@@ -189,7 +189,7 @@ class Pattrie:
         """
         ...
 
-    def get_key(self, key: AddressKey) -> str | None:
+    def get_key(self, key: AddressKey, bare: bool = False) -> str | None:
         """Return the matching prefix for a longest-prefix-match lookup.
 
         Unlike `__getitem__`, returns the *prefix string* (e.g.
@@ -197,9 +197,16 @@ class Pattrie:
 
         Args:
             key: An IP address or network prefix.
+            bare: When ``True``, strip the ``/len`` suffix and return only
+                the network address. Defaults to ``False`` (full CIDR form).
 
         Returns:
-            The matched prefix as a CIDR string, or `None` on a miss.
+            The matched prefix string, or `None` on a miss.
+
+        Note:
+            Bare output is lossy — the prefix length is discarded and the
+            result cannot be round-tripped back into the same prefix.
+            Use this flag for display or interop, not for re-insertion.
         """
         ...
 
@@ -290,8 +297,23 @@ class Pattrie:
         """
         ...
 
-    def keys(self) -> list[str]:
-        """Return a list of all stored prefixes as CIDR strings."""
+    def keys(self, bare: bool = False) -> list[str]:
+        """Return a list of all stored prefixes.
+
+        Args:
+            bare: When ``True``, strip the ``/len`` suffix and return only
+                the network address (e.g. ``"10.1.0.0"`` instead of
+                ``"10.1.0.0/24"``). Defaults to ``False`` (full CIDR form).
+
+        Note:
+            Bare output is lossy — the prefix length is discarded and the
+            result cannot be round-tripped back into the same prefix.
+            Use this flag for display or interop, not for re-insertion.
+            Two distinct prefixes with the same network address but different
+            lengths (e.g. ``"10.0.0.0/8"`` and ``"10.0.0.0/16"``) produce
+            duplicate bare keys — building a ``dict`` from bare output will
+            silently drop all but one entry for each collision.
+        """
         ...
 
     def values(self) -> list[object]:
@@ -302,15 +324,29 @@ class Pattrie:
         """
         ...
 
-    def items(self) -> list[tuple[str, object]]:
+    def items(self, bare: bool = False) -> list[tuple[str, object]]:
         """Return a list of ``(prefix, value)`` pairs in trie traversal order.
 
-        Each element is a two-tuple of the CIDR prefix string and its
-        associated value, in the same order as ``keys()``.
+        Each element is a two-tuple of the prefix string and its associated
+        value, in the same order as ``keys()``.
+
+        Args:
+            bare: When ``True``, strip the ``/len`` suffix from each key,
+                returning only the network address. Defaults to ``False``
+                (full CIDR form).
+
+        Note:
+            Bare output is lossy — the prefix length is discarded and the
+            result cannot be round-tripped back into the same prefix.
+            Use this flag for display or interop, not for re-insertion.
+            Two distinct prefixes with the same network address but different
+            lengths (e.g. ``"10.0.0.0/8"`` and ``"10.0.0.0/16"``) produce
+            duplicate bare keys — ``dict(t.items(bare=True))`` will silently
+            drop all but one entry for each collision.
         """
         ...
 
-    def children(self, prefix: NetworkKey) -> list[str]:
+    def children(self, prefix: NetworkKey, bare: bool = False) -> list[str]:
         """Return all prefixes in the trie more specific than ``prefix``.
 
         Uses longest-prefix containment: any stored prefix whose address
@@ -323,9 +359,12 @@ class Pattrie:
                 ``IPv6Network``, or raw address bytes — ``bytes`` or a
                 ``(bytes, prefixlen)`` tuple). Host bits are zeroed before
                 lookup.
+            bare: When ``True``, strip the ``/len`` suffix from each result,
+                returning only the network address. Defaults to ``False``
+                (full CIDR form).
 
         Returns:
-            A list of CIDR strings for all stored prefixes contained within
+            A list of prefix strings for all stored prefixes contained within
             ``prefix``. Order is lexicographic (prefix-trie traversal order).
 
         Raises:
@@ -390,7 +429,7 @@ class Pattrie:
         """
         ...
 
-    def parent(self, prefix: NetworkKey) -> str | None:
+    def parent(self, prefix: NetworkKey, bare: bool = False) -> str | None:
         """Return the closest covering prefix for ``prefix``.
 
         Returns the longest stored prefix that contains ``prefix`` but is not
@@ -402,9 +441,12 @@ class Pattrie:
                 ``IPv6Network``, or raw address bytes — ``bytes`` or a
                 ``(bytes, prefixlen)`` tuple). Host bits are zeroed before
                 lookup.
+            bare: When ``True``, strip the ``/len`` suffix from the result,
+                returning only the network address. Defaults to ``False``
+                (full CIDR form).
 
         Returns:
-            The CIDR string of the longest stored prefix that covers
+            The prefix string of the longest stored prefix that covers
             ``prefix``, or ``None`` if no such prefix exists.
 
         Raises:
