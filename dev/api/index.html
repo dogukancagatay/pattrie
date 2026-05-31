@@ -1785,7 +1785,7 @@ tuples) are supported in both frozen and non-frozen modes.</p>
 
 
 <h3 id="pattrie.Pattrie.get_key" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">get_key</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">AddressKey</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></code>
+            <code class="highlight language-python"><span class="n">get_key</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">AddressKey</span><span class="p">,</span> <span class="n">bare</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></code>
 
 </h3>
 
@@ -1824,6 +1824,23 @@ tuples) are supported in both frozen and non-frozen modes.</p>
                 <em>required</em>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>bare</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When <code>True</code>, strip the <code>/len</code> suffix and return only
+the network address. Defaults to <code>False</code> (full CIDR form).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -1843,13 +1860,20 @@ tuples) are supported in both frozen and non-frozen modes.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The matched prefix as a CIDR string, or <code>None</code> on a miss.</p>
+                <p>The matched prefix string, or <code>None</code> on a miss.</p>
               </div>
             </td>
           </tr>
       </tbody>
     </table>
 
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>Bare output is lossy — the prefix length is discarded and the
+result cannot be round-tripped back into the same prefix.
+Use this flag for display or interop, not for re-insertion.</p>
+</details>
 
     </div>
 
@@ -2215,15 +2239,59 @@ prefix length exceeds <code>maxbits</code>.</p>
 
 
 <h3 id="pattrie.Pattrie.keys" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">keys</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></code>
+            <code class="highlight language-python"><span class="n">keys</span><span class="p">(</span><span class="n">bare</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></code>
 
 </h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Return a list of all stored prefixes as CIDR strings.</p>
+        <p>Return a list of all stored prefixes.</p>
 
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>bare</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When <code>True</code>, strip the <code>/len</code> suffix and return only
+the network address (e.g. <code>"10.1.0.0"</code> instead of
+<code>"10.1.0.0/24"</code>). Defaults to <code>False</code> (full CIDR form).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>Bare output is lossy — the prefix length is discarded and the
+result cannot be round-tripped back into the same prefix.
+Use this flag for display or interop, not for re-insertion.
+Two distinct prefixes with the same network address but different
+lengths (e.g. <code>"10.0.0.0/8"</code> and <code>"10.0.0.0/16"</code>) produce
+duplicate bare keys — building a <code>dict</code> from bare output will
+silently drop all but one entry for each collision.</p>
+</details>
 
     </div>
 
@@ -2253,7 +2321,7 @@ prefix length exceeds <code>maxbits</code>.</p>
 
 
 <h3 id="pattrie.Pattrie.items" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">items</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]</span></code>
+            <code class="highlight language-python"><span class="n">items</span><span class="p">(</span><span class="n">bare</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]</span></code>
 
 </h3>
 
@@ -2261,9 +2329,53 @@ prefix length exceeds <code>maxbits</code>.</p>
     <div class="doc doc-contents ">
 
         <p>Return a list of <code>(prefix, value)</code> pairs in trie traversal order.</p>
-<p>Each element is a two-tuple of the CIDR prefix string and its
-associated value, in the same order as <code>keys()</code>.</p>
+<p>Each element is a two-tuple of the prefix string and its associated
+value, in the same order as <code>keys()</code>.</p>
 
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>bare</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When <code>True</code>, strip the <code>/len</code> suffix from each key,
+returning only the network address. Defaults to <code>False</code>
+(full CIDR form).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="note" open>
+  <summary>Note</summary>
+  <p>Bare output is lossy — the prefix length is discarded and the
+result cannot be round-tripped back into the same prefix.
+Use this flag for display or interop, not for re-insertion.
+Two distinct prefixes with the same network address but different
+lengths (e.g. <code>"10.0.0.0/8"</code> and <code>"10.0.0.0/16"</code>) produce
+duplicate bare keys — <code>dict(t.items(bare=True))</code> will silently
+drop all but one entry for each collision.</p>
+</details>
 
     </div>
 
@@ -2273,7 +2385,7 @@ associated value, in the same order as <code>keys()</code>.</p>
 
 
 <h3 id="pattrie.Pattrie.children" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">children</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></code>
+            <code class="highlight language-python"><span class="n">children</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">,</span> <span class="n">bare</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></code>
 
 </h3>
 
@@ -2317,6 +2429,24 @@ lookup.</p>
                 <em>required</em>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>bare</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When <code>True</code>, strip the <code>/len</code> suffix from each result,
+returning only the network address. Defaults to <code>False</code>
+(full CIDR form).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -2336,7 +2466,7 @@ lookup.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A list of CIDR strings for all stored prefixes contained within</p>
+                <p>A list of prefix strings for all stored prefixes contained within</p>
               </div>
             </td>
           </tr>
@@ -2533,7 +2663,7 @@ t.get_all(&quot;1.2.3.4&quot;)   # no covering prefix
 
 
 <h3 id="pattrie.Pattrie.parent" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">parent</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></code>
+            <code class="highlight language-python"><span class="n">parent</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">,</span> <span class="n">bare</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></code>
 
 </h3>
 
@@ -2576,6 +2706,24 @@ lookup.</p>
                 <em>required</em>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>bare</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>When <code>True</code>, strip the <code>/len</code> suffix from the result,
+returning only the network address. Defaults to <code>False</code>
+(full CIDR form).</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -2595,7 +2743,7 @@ lookup.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The CIDR string of the longest stored prefix that covers</p>
+                <p>The prefix string of the longest stored prefix that covers</p>
               </div>
             </td>
           </tr>
