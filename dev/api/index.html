@@ -676,6 +676,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.add" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.discard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        discard
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#pattrie.Pattrie.freeze" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1006,6 +1028,28 @@
     <span class="md-ellipsis">
       
         load
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.add" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pattrie.Pattrie.discard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        discard
       
     </span>
   </a>
@@ -2777,6 +2821,160 @@ created.</p>
               <div class="doc-md-description">
                 <p>If the file is not a valid pattrie dump or is
 corrupt.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.add" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Insert a prefix without a value (set-style).</p>
+<p>Stores <code>None</code> as the sentinel value for the prefix. If the prefix
+is already present with an existing value, that value is left intact
+— <code>add</code> never destroys data.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="pattrie._pattrie.NetworkKey">NetworkKey</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A network prefix (CIDR string, <code>IPv4Network</code>,
+<code>IPv6Network</code>, or raw address bytes). Host bits are zeroed
+before insertion.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the trie is frozen, the prefix is malformed, or
+the prefix length exceeds <code>maxbits</code>.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pattrie.Pattrie.discard" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">discard</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="n">NetworkKey</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Remove a prefix if present; no-op if absent.</p>
+<p>Unlike <code>delete</code>/<code>__delitem__</code>, does not raise <code>KeyError</code> when
+the prefix is not found.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>key</code>
+            </td>
+            <td>
+                  <code><span title="pattrie._pattrie.NetworkKey">NetworkKey</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A network prefix (CIDR string, <code>IPv4Network</code>,
+<code>IPv6Network</code>, or raw address bytes). Host bits are zeroed
+before lookup.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the trie is frozen or the prefix is malformed.</p>
               </div>
             </td>
           </tr>
